@@ -1,15 +1,27 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { HiXCircle } from 'react-icons/hi';
+
+import { useListFindAll, useListDestroy } from '../store';
 
 export function Landing() {
-  const [count, setCount] = useState(0);
+  const { data } = useListFindAll();
+  const onDestroy = useListDestroy();
+
   return (
-    <div className="App-header">
-      <p>Hello Vite + React!</p>
-      <p>
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is: {count}
-        </button>
-      </p>
-    </div>
+    <ul>
+      {data?.map(({ id, title }) => (
+        <li key={id}>
+          <NavLink to={`l/${id}`}>{title}</NavLink>
+          <button
+            className="pl-3"
+            type="button"
+            onClick={() => onDestroy.mutate(id)}
+          >
+            <HiXCircle />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
