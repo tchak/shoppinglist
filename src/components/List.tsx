@@ -14,9 +14,10 @@ export function List() {
   if (!data) {
     return <>Loading...</>;
   }
+  const title = data.getText('title');
   return (
     <h3>
-      <EditableTitle title={data.title} onChange={onChange} />
+      <EditableTitle title={title.toString()} onChange={onChange} />
     </h3>
   );
 }

@@ -2,6 +2,9 @@ import localforage from 'localforage';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { v4 as uuid } from 'uuid';
 
+import * as Y from 'yjs';
+import { IndexeddbPersistence } from 'y-indexeddb';
+
 localforage.config({
   version: 1,
   name: 'shoppinglist',
@@ -13,12 +16,17 @@ export interface List {
   title: string;
 }
 
+export interface Item {
+  title: string;
+  checked: boolean;
+}
+
 export function useListFindAll() {
   return useQuery<List[]>('lists', getAll);
 }
 
 export function useListFindOne(id: string) {
-  return useQuery<List>(['list', id], () => getOne(id));
+  return useQuery<Y.Doc>(['list', id], () => getYDoc(id));
 }
 
 export function useListCreate(defaultTitle: string) {
@@ -36,9 +44,8 @@ export function useListDestroy() {
   const mutation = useMutation<{ id: string }, void, string>(
     (id) => destroyList(id),
     {
-      onSuccess({ id }) {
+      onSuccess() {
         queryClient.invalidateQueries('lists');
-        queryClient.invalidateQueries(['list', id]);
       },
     }
   );
@@ -50,9 +57,8 @@ export function useListChangeTitle(id: string) {
   const mutation = useMutation<{ id: string }, void, string>(
     (title) => updateList({ id, title }),
     {
-      onSuccess({ id }) {
+      onSuccess() {
         queryClient.invalidateQueries('lists');
-        queryClient.invalidateQueries(['list', id]);
       },
     }
   );
@@ -66,6 +72,16 @@ async function getOne(id: string) {
     return list;
   }
   throw new Error('Not Found');
+}
+
+async function getYDoc(id: string) {
+  const { title } = await getOne(id);
+  const [doc] = await findOrCreatePersistedYDoc(id);
+  const text = doc.getText('title');
+  if (text.length === 0) {
+    text.insert(0, title);
+  }
+  return doc;
 }
 
 async function getAll() {
@@ -83,10 +99,51 @@ async function createList(title: string) {
 
 async function updateList({ id, title }: List) {
   await localforage.setItem(id, { title });
+  const [doc] = await findOrCreatePersistedYDoc(id);
+  const text = doc.getText('title');
+  text.delete(0, text.length);
+  text.insert(0, title);
   return { id };
 }
 
 async function destroyList(id: string) {
   await localforage.removeItem(id);
+  await destroyPersistedYDoc(id);
   return { id };
 }
+
+async function findOrCreatePersistedYDoc(
+  id: string
+): Promise<[Y.Doc, IndexeddbPersistence]> {
+  let doc = docs.get(id);
+  if (!doc) {
+    doc = new Y.Doc();
+    docs.set(id, doc);
+  }
+
+  let index = storage.get(doc);
+  if (!index) {
+    index = new IndexeddbPersistence(id, doc);
+    storage.set(doc, index);
+    await index.whenSynced;
+  }
+
+  return [doc, index];
+}
+
+async function destroyPersistedYDoc(id: string) {
+  const [, index] = await findOrCreatePersistedYDoc(id);
+  await index.clearData();
+  await disconnectPersistedYDoc(id);
+}
+
+async function disconnectPersistedYDoc(id: string) {
+  const [doc, index] = await findOrCreatePersistedYDoc(id);
+  index.destroy();
+  doc.destroy();
+  docs.delete(id);
+  storage.delete(doc);
+}
+
+const docs = new Map<string, Y.Doc>();
+const storage = new WeakMap<Y.Doc, IndexeddbPersistence>();
