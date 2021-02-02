@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { HiPencil } from 'react-icons/hi';
+import { isHotkey } from 'is-hotkey';
+import { useDebouncedCallback } from 'use-debounce';
 
 import { useListFindOne, useListChangeTitle } from '../store';
 
@@ -19,6 +21,9 @@ export function List() {
   );
 }
 
+const isEnterKey = isHotkey('enter');
+const isEscKey = isHotkey('esc');
+
 function EditableTitle({
   title,
   onChange,
@@ -27,7 +32,16 @@ function EditableTitle({
   onChange: (title: string) => void;
 }) {
   const [value, setValue] = useState(title);
+  const debounced = useDebouncedCallback((value) => onChange(value), 500);
   const [isEditing, setIsEditing] = useState(false);
+  const close = useCallback(
+    (value: string) => {
+      setIsEditing(false);
+      onChange(value);
+      setValue(value);
+    },
+    [onChange]
+  );
 
   if (isEditing) {
     return (
@@ -42,11 +56,16 @@ function EditableTitle({
           className="shadow-sm focus:ring-green-500 focus:border-green-500 block w-full sm:text-sm border-gray-300 rounded-md"
           value={value}
           autoFocus={true}
-          onChange={({ currentTarget: { value: title } }) => {
-            onChange(title);
-            setValue(title);
+          onChange={({ currentTarget: { value } }) => {
+            debounced.callback(value);
+            setValue(value);
           }}
-          onBlur={() => setIsEditing(false)}
+          onBlur={({ currentTarget: { value } }) => close(value)}
+          onKeyDown={({ nativeEvent, currentTarget: { value } }) => {
+            if (isEnterKey(nativeEvent) || isEscKey(nativeEvent)) {
+              close(value);
+            }
+          }}
         />
       </div>
     );

@@ -219,6 +219,11 @@
     lodash.merge "^4.6.2"
     lodash.uniq "^4.5.0"
 
+"@types/is-hotkey@^0.1.2":
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/@types/is-hotkey/-/is-hotkey-0.1.2.tgz#94f00793b5a297a7f7e69c1ef49613da2243a987"
+  integrity sha512-SUw9LpI3AIwbRNXS7FYy9AlXrTPIdBZGI7y4XxfIEYqgSW1UfFCUM9cMwHE/yCfTl0qeI0UQ/q8TdIxsIFgKPg==
+
 "@types/prop-types@*":
   version "15.7.3"
   resolved "https://registry.yarnpkg.com/@types/prop-types/-/prop-types-15.7.3.tgz#2ab0d5da2e5815f94b0b9d4b95d1e5f243ab2ca7"
@@ -607,6 +612,11 @@ is-core-module@^2.1.0:
   integrity sha512-XRAfAdyyY5F5cOXn7hYQDqh2Xmii+DEfIcQGxK/uNwMHhIkPWO0g8msXcbzLe+MpGoR951MlqM/2iIlU4vKDdQ==
   dependencies:
     has "^1.0.3"
+
+is-hotkey@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/is-hotkey/-/is-hotkey-0.2.0.tgz#1835a68171a91e5c9460869d96336947c8340cef"
+  integrity sha512-UknnZK4RakDmTgz4PI1wIph5yxSs/mvChWs9ifnlXsKuXgWmOkY/hAE0H/k2MIqH0RlRye0i1oC07MCRSD28Mw==
 
 "js-tokens@^3.0.0 || ^4.0.0", js-tokens@^4.0.0:
   version "4.0.0"
@@ -1038,6 +1048,11 @@ universalify@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-2.0.0.tgz#75a4984efedc4b08975c5aeb73f530d02df25717"
   integrity sha512-hAZsKq7Yy11Zu1DE0OzWjw7nnLZmJZYTDZZyEFHZdUhV8FkH5MCfoU1XMaxXovpyW5nq5scPqq0ZDP9Zyl04oQ==
+
+use-debounce@^5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/use-debounce/-/use-debounce-5.2.0.tgz#3cb63f5c46f40092c570356e441dbc016ffb2f8b"
+  integrity sha512-lW4tbPsTnvPKYqOYXp5xZ7SP7No/ARLqqQqoyRKuSzP0HxR9arhSAhznXUZFoNPWDRij8fog+N6sYbjb8c3kzw==
 
 util-deprecate@^1.0.2:
   version "1.0.2"
