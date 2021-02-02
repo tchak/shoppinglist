@@ -1,0 +1,28 @@
+{
+  "name": "shoppinglist",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "start": "vite",
+    "build": "tsc && vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "history": "^5.0.0",
+    "react": "^17.0.0",
+    "react-dom": "^17.0.0",
+    "react-icons": "^4.1.0",
+    "react-router-dom": "^6.0.0-beta.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.2.1",
+    "@tailwindcss/typography": "^0.4.0",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "@vitejs/plugin-react-refresh": "^1.1.0",
+    "autoprefixer": "^10.2.4",
+    "tailwindcss": "^2.0.2",
+    "typescript": "^4.1.2",
+    "vite": "^2.0.0-beta.50"
+  }
+}
