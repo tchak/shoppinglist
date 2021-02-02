@@ -23,23 +23,40 @@ export function useListFindOne(id: string) {
 
 export function useListCreate(defaultTitle: string) {
   const queryClient = useQueryClient();
-
-  return useMutation<{ id: string }>(() => createList(defaultTitle), {
+  const mutation = useMutation<{ id: string }>(() => createList(defaultTitle), {
     onSuccess() {
       queryClient.invalidateQueries('lists');
     },
   });
+  return () => mutation.mutate();
 }
 
 export function useListDestroy() {
   const queryClient = useQueryClient();
+  const mutation = useMutation<{ id: string }, void, string>(
+    (id) => destroyList(id),
+    {
+      onSuccess({ id }) {
+        queryClient.invalidateQueries('lists');
+        queryClient.invalidateQueries(['list', id]);
+      },
+    }
+  );
+  return (id: string) => mutation.mutate(id);
+}
 
-  return useMutation<{ id: string }, void, string>((id) => destroyList(id), {
-    onSuccess({ id }) {
-      queryClient.invalidateQueries('lists');
-      queryClient.invalidateQueries(['list', id]);
-    },
-  });
+export function useListChangeTitle(id: string) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation<{ id: string }, void, string>(
+    (title) => updateList({ id, title }),
+    {
+      onSuccess({ id }) {
+        queryClient.invalidateQueries('lists');
+        queryClient.invalidateQueries(['list', id]);
+      },
+    }
+  );
+  return (title: string) => mutation.mutate(title);
 }
 
 async function getOne(id: string) {
@@ -61,6 +78,11 @@ async function createList(title: string) {
   await localforage.setItem(id, {
     title,
   });
+  return { id };
+}
+
+async function updateList({ id, title }: List) {
+  await localforage.setItem(id, { title });
   return { id };
 }
 

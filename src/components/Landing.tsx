@@ -13,11 +13,7 @@ export function Landing() {
       {data?.map(({ id, title }) => (
         <li key={id}>
           <NavLink to={`l/${id}`}>{title}</NavLink>
-          <button
-            className="pl-3"
-            type="button"
-            onClick={() => onDestroy.mutate(id)}
-          >
+          <button className="pl-3" type="button" onClick={() => onDestroy(id)}>
             <HiXCircle />
           </button>
         </li>
