@@ -12,7 +12,7 @@ function App() {
   return (
     <div className="bg-gray-200 h-full min-h-screen py-2">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-2xl mx-auto">
           <div className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
             <header className="px-4 py-4 sm:px-6">
               <Header />
