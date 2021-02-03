@@ -1,11 +1,14 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { ErrorBoundary } from '@sentry/react';
+
+import { ErrorFallback } from './components/ErrorFallback';
+import { Loader } from './components/Loader';
 
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 
-import { Landing } from './components/Landing';
-
+const LazyLanding = lazy(() => import('./components/Landing'));
 const LazyList = lazy(() => import('./components/List'));
 const LazyAbout = lazy(() => import('./components/About'));
 
@@ -19,13 +22,17 @@ function App() {
               <Header />
             </header>
             <div role="main" className="px-4 py-5 sm:p-6">
-              <Suspense fallback={<>Loading...</>}>
-                <Routes>
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/l/:id" element={<LazyList />} />
-                  <Route path="/about" element={<LazyAbout />} />
-                </Routes>
-              </Suspense>
+              <ErrorBoundary
+                fallback={({ error }) => <ErrorFallback error={error} />}
+              >
+                <Suspense fallback={<Loader />}>
+                  <Routes>
+                    <Route path="/" element={<LazyLanding />} />
+                    <Route path="/l/:id" element={<LazyList />} />
+                    <Route path="/about" element={<LazyAbout />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
             </div>
             <footer className="px-4 py-4 sm:px-6">
               <Footer />

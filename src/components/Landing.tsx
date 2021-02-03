@@ -4,13 +4,19 @@ import { HiTrash } from 'react-icons/hi';
 
 import { useListFindAll, useListDestroy } from '../store';
 
+import { Loader } from './Loader';
+
 export function Landing() {
   const { data } = useListFindAll();
   const onDestroy = useListDestroy();
 
+  if (!data) {
+    return <Loader />;
+  }
+
   return (
     <ul className="divide-y divide-gray-200">
-      {data?.map(({ id, title }) => (
+      {data.map(({ id, title }) => (
         <li key={id} className="group py-4 flex">
           <div className="ml-3 flex-grow">
             <p className="text-sm font-medium text-gray-900">
@@ -30,3 +36,5 @@ export function Landing() {
     </ul>
   );
 }
+
+export default Landing;
