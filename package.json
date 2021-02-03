@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@reach/combobox": "^0.13.0",
+    "@reach/disclosure": "^0.13.0",
     "history": "^5.0.0",
     "is-hotkey": "^0.2.0",
     "localforage": "^1.9.0",

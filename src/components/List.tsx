@@ -10,6 +10,11 @@ import {
   ComboboxList,
   ComboboxOption,
 } from '@reach/combobox';
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from '@reach/disclosure';
 
 import {
   useListFindOne,
@@ -17,6 +22,8 @@ import {
   useListAddItem,
   useListToggleItem,
   useListRemoveItem,
+  ID,
+  Item,
 } from '../store';
 
 export function List() {
@@ -30,71 +37,30 @@ export function List() {
   if (!data) {
     return <>Loading...</>;
   }
-  const activeItems = data.items.filter(({ checked }) => !checked);
-  const doneItems = data.items.filter(({ checked }) => checked);
+
+  const title = data.title;
+  const items = data.items.filter(({ checked }) => !checked);
+  const checkedItems = data.items.filter(({ checked }) => checked);
+
   return (
     <div>
-      <h3>
-        <EditableTitle title={data.title} onChange={onChangeTitle} />
-      </h3>
+      <EditableTitle title={title} onChange={onChangeTitle} />
+
       <div className="mt-2">
         <AddItemCombobox onSelect={onAddItem} />
       </div>
-      <ul className="divide-y divide-gray-200">
-        {activeItems.map(({ id, title }) => (
-          <li key={id} className="group py-4 flex">
-            <div className="ml-3 flex-grow">
-              <p className="text-sm font-medium text-gray-900">{title}</p>
-              <p className="text-sm text-gray-500">note</p>
-            </div>
-            <button
-              className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-              type="button"
-              data-list-item-control
-              onClick={() => onToggleItem(id)}
-            >
-              <HiCheck className="hover:text-green-500 text-2xl" />
-            </button>
-            <button
-              className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-              type="button"
-              data-list-item-control
-              onClick={() => onRemoveItem(id)}
-            >
-              <HiTrash className="hover:text-red-500 text-2xl" />
-            </button>
-          </li>
-        ))}
-      </ul>
-      {doneItems.length ? <p>{doneItems.length} checked off</p> : null}
-      <ul className="divide-y divide-gray-200">
-        {doneItems.map(({ id, title }) => (
-          <li key={id} className="group py-4 flex">
-            <div className="ml-3 flex-grow">
-              <p className="text-sm font-medium text-gray-900 line-through">
-                {title}
-              </p>
-              <p className="text-sm text-gray-500">note</p>
-            </div>
-            <button
-              className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-              type="button"
-              data-list-item-control
-              onClick={() => onToggleItem(id)}
-            >
-              <HiPlus className="hover:text-green-500 text-2xl" />
-            </button>
-            <button
-              className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-              type="button"
-              data-list-item-control
-              onClick={() => onRemoveItem(id)}
-            >
-              <HiTrash className="hover:text-red-500 text-2xl" />
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      <ActiveItemsList
+        items={items}
+        onToggle={onToggleItem}
+        onRemove={onRemoveItem}
+      />
+
+      <CheckedOffItemsList
+        items={checkedItems}
+        onToggle={onToggleItem}
+        onRemove={onRemoveItem}
+      />
     </div>
   );
 }
@@ -112,6 +78,7 @@ function EditableTitle({
   const [value, setValue] = useState(title);
   const debounced = useDebouncedCallback((value) => onChange(value), 500);
   const [isEditing, setIsEditing] = useState(false);
+  const open = () => setIsEditing(true);
   const close = useCallback(
     (value: string) => {
       setIsEditing(false);
@@ -123,9 +90,9 @@ function EditableTitle({
 
   if (isEditing) {
     return (
-      <div>
+      <h3>
         <label htmlFor="list-title" className="sr-only">
-          Title
+          List title
         </label>
         <input
           id="list-title"
@@ -145,7 +112,7 @@ function EditableTitle({
             }
           }}
         />
-      </div>
+      </h3>
     );
   }
 
@@ -154,13 +121,13 @@ function EditableTitle({
       <h3 className="group flex">
         <div
           className="flex items-center flex-grow text-lg font-semibold"
-          onDoubleClick={() => setIsEditing(true)}
+          onDoubleClick={open}
         >
           {title}
         </div>
         <button
           className="px-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-          onClick={() => setIsEditing(true)}
+          onClick={open}
         >
           <HiPencil className="hover:text-green-500 text-2xl" />
         </button>
@@ -202,5 +169,86 @@ function AddItemCombobox({ onSelect }: { onSelect: (value: string) => void }) {
         </ComboboxPopover>
       </Combobox>
     </div>
+  );
+}
+
+interface ListItemProps {
+  onToggle: (id: ID) => void;
+  onRemove: (id: ID) => void;
+}
+
+function ActiveItemsList({
+  items,
+  ...props
+}: {
+  items: Item[];
+} & ListItemProps) {
+  return (
+    <ul className="divide-y divide-gray-200">
+      {items.map((item) => (
+        <ListItem key={item.id} {...item} {...props} />
+      ))}
+    </ul>
+  );
+}
+
+function CheckedOffItemsList({
+  items,
+  ...props
+}: {
+  items: Item[];
+} & ListItemProps) {
+  if (items.length === 0) {
+    return null;
+  }
+  return (
+    <Disclosure>
+      <DisclosureButton>{items.length} checked off</DisclosureButton>
+      <DisclosurePanel as="ul" className="divide-y divide-gray-200">
+        {items.map((item) => (
+          <ListItem key={item.id} {...item} {...props} />
+        ))}
+      </DisclosurePanel>
+    </Disclosure>
+  );
+}
+
+function ListItem({
+  id,
+  title,
+  checked,
+  onToggle,
+  onRemove,
+}: Item & ListItemProps) {
+  const Icon = checked ? HiPlus : HiCheck;
+
+  return (
+    <li className="group py-4 flex">
+      <div className="ml-3 flex-grow">
+        <p
+          className={`text-sm font-medium text-gray-900 ${
+            checked ? 'line-through' : ''
+          }`}
+        >
+          {title}
+        </p>
+        <p className="text-sm text-gray-500">note</p>
+      </div>
+
+      <button
+        className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
+        type="button"
+        onClick={() => onToggle(id)}
+      >
+        <Icon className="hover:text-green-500 text-2xl" />
+      </button>
+      <button
+        className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
+        type="button"
+        onClick={() => onRemove(id)}
+      >
+        <HiTrash className="hover:text-red-500 text-2xl" />
+      </button>
+    </li>
   );
 }

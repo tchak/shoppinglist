@@ -11,15 +11,15 @@ localforage.config({
   storeName: 'lists',
 });
 
-type ID = string;
+export type ID = string;
 
-interface List {
+export interface List {
   id: ID;
   title: string;
   items: Item[];
 }
 
-interface Item {
+export interface Item {
   id: ID;
   title: string;
   checked: boolean;
