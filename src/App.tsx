@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 
 import { Landing } from './components/Landing';
-import { List } from './components/List';
-import { About } from './components/About';
+
+const LazyList = lazy(() => import('./components/List'));
+const LazyAbout = lazy(() => import('./components/About'));
 
 function App() {
   return (
@@ -18,11 +19,13 @@ function App() {
               <Header />
             </header>
             <div role="main" className="px-4 py-5 sm:p-6">
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/l/:id" element={<List />} />
-                <Route path="/about" element={<About />} />
-              </Routes>
+              <Suspense fallback={<>Loading...</>}>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/l/:id" element={<LazyList />} />
+                  <Route path="/about" element={<LazyAbout />} />
+                </Routes>
+              </Suspense>
             </div>
             <footer className="px-4 py-4 sm:px-6">
               <Footer />
