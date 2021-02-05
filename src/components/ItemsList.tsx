@@ -6,10 +6,10 @@ import {
   DisclosurePanel,
 } from '@reach/disclosure';
 
-import { ID, Item } from '../store';
+import { ID, Item } from '../hooks';
 
 interface ListItemProps {
-  onToggle: (id: ID) => void;
+  onToggle: (id: ID, checked: boolean) => void;
   onRemove: (id: ID) => void;
 }
 
@@ -74,7 +74,7 @@ function ListItem({
       <button
         className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
         type="button"
-        onClick={() => onToggle(id)}
+        onClick={() => onToggle(id, !checked)}
       >
         <Icon className="hover:text-green-500 text-2xl" />
       </button>

@@ -2,13 +2,13 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { HiTrash } from 'react-icons/hi';
 
-import { useListFindAll, useListDestroy } from '../store';
+import { List, useEntitiesQuery, useEntityMutation } from '../hooks';
 
 import { Loader } from './Loader';
 
 export function Landing() {
-  const { data } = useListFindAll();
-  const onDestroy = useListDestroy();
+  const { data } = useEntitiesQuery<List>('list');
+  const mutation = useEntityMutation('list');
 
   if (!data) {
     return <Loader />;
@@ -27,7 +27,7 @@ export function Landing() {
             className="px-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
             type="button"
             data-list-item-control
-            onClick={() => onDestroy(id)}
+            onClick={() => mutation.remove(id)}
           >
             <HiTrash className="hover:text-red-500 text-2xl" />
           </button>

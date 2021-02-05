@@ -1,55 +1,61 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 
-import {
-  useListFindOne,
-  useListChangeTitle,
-  useListAddItem,
-  useListToggleItem,
-  useListRemoveItem,
-} from '../store';
-
+import { List, useEntityQuery, useEntityMutation } from '../hooks';
 import { Loader } from './Loader';
 
 import { ListTitle } from './ListTitle';
 import { AddItemCombobox } from './AddItemCombobox';
 import { ActiveItemsList, CheckedOffItemsList } from './ItemsList';
 
-export function List() {
+export function ListComponent() {
   const { id } = useParams();
-  const { data } = useListFindOne(id);
-  const onChangeTitle = useListChangeTitle(id);
-  const onAddItem = useListAddItem(id);
-  const onToggleItem = useListToggleItem(id);
-  const onRemoveItem = useListRemoveItem(id);
+  const { data } = useEntityQuery<List>('list', id);
+  const listMutation = useEntityMutation('list', id);
+  const itemMutation = useEntityMutation('item');
+
+  const onToggle = useCallback(
+    (id, checked) => itemMutation.update({ checked }, id),
+    [itemMutation]
+  );
+  const onRemove = useCallback(
+    (id: string) => {
+      listMutation.hasMany('items').remove({ type: 'item', id });
+      itemMutation.remove(id);
+    },
+    [listMutation, itemMutation]
+  );
 
   if (!data) {
     return <Loader />;
   }
 
   const title = data.title;
-  const items = data.items.filter(({ checked }) => !checked);
-  const checkedItems = data.items.filter(({ checked }) => checked);
+  const items = (data.items ?? []).filter(({ checked }) => !checked);
+  const checkedItems = (data.items ?? []).filter(({ checked }) => checked);
 
   return (
     <div>
-      <ListTitle title={title} onChange={onChangeTitle} />
-
-      <AddItemCombobox onSelect={onAddItem} />
-
-      <ActiveItemsList
-        items={items}
-        onToggle={onToggleItem}
-        onRemove={onRemoveItem}
+      <ListTitle
+        title={title}
+        onChange={(title) => listMutation.update({ title })}
       />
+
+      <AddItemCombobox
+        onSelect={(title) =>
+          listMutation.hasMany('items').add('item', { title })
+        }
+      />
+
+      <ActiveItemsList items={items} onToggle={onToggle} onRemove={onRemove} />
 
       <CheckedOffItemsList
         items={checkedItems}
-        onToggle={onToggleItem}
-        onRemove={onRemoveItem}
+        onToggle={onToggle}
+        onRemove={onRemove}
       />
     </div>
   );
 }
 
-export default List;
+export default ListComponent;
