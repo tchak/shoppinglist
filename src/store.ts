@@ -10,14 +10,10 @@ import {
   UpdateEntityOperation,
   AddToHasManyOperation,
   RemoveFromHasManyOperation,
+  isAddToHasManyOperation,
+  isRemoveFromHasManyOperation,
 } from './operations';
-import {
-  Identifier,
-  Entity,
-  materializeEntity,
-  materializeEntityLink,
-  collectEntityLinks,
-} from './entity';
+import { Identifier, Entity, materializeEntity } from './entity';
 
 export interface StoreSettings {
   name?: string;
@@ -58,7 +54,10 @@ export class Store {
     return this.#db;
   }
 
-  async find<T = Entity>(type: string): Promise<T[]> {
+  async find<T = Entity>(
+    type: string,
+    options?: { include?: string[] }
+  ): Promise<T[]> {
     const db = await this.db();
     const operations = await db.getAllFromIndex('operations', 'type', type);
     const operationsByEntity: Record<string, Operation[]> = {};
@@ -68,11 +67,8 @@ export class Store {
     }
     const entities: T[] = [];
     for (const [id, operations] of Object.entries(operationsByEntity)) {
-      this.#operations.set(
-        identity({ type, id }),
-        operations.sort(sortByTimestamp)
-      );
-      const entity = await this._materialize<T>(type, id);
+      this.#operations.set(id, operations.sort(sortByTimestamp));
+      const entity = await this.materializeEntity<T>(id, options?.include);
       if (entity) {
         entities.push(entity);
       }
@@ -83,16 +79,19 @@ export class Store {
 
   async findOne<T = Entity>(
     { type, id }: Identifier,
-    options?: { fetch?: boolean }
+    options?: { fetch?: boolean; include?: string[] }
   ): Promise<T | null> {
     if (options?.fetch) {
-      await this._fetch(type, id);
+      await this.fetchEntity(type, id);
     }
-    return this._materialize<T>(type, id);
+    return this.materializeEntity<T>(id, options?.include);
   }
 
-  async findOneOrFail<T = Entity>({ type, id }: Identifier) {
-    const entity = await this._materialize<T>(type, id);
+  async findOneOrFail<T = Entity>(
+    { id }: Identifier,
+    options?: { include?: string[] }
+  ) {
+    const entity = await this.materializeEntity<T>(id, options?.include);
     if (entity) {
       return entity;
     }
@@ -109,7 +108,7 @@ export class Store {
       data: {
         attributes,
       },
-      meta: this._meta(),
+      meta: this.meta(),
     };
 
     await this.transform(operation);
@@ -135,7 +134,7 @@ export class Store {
             [key]: value,
           },
         },
-        meta: this._meta(),
+        meta: this.meta(),
       }));
 
     await this.transform(operations);
@@ -148,7 +147,7 @@ export class Store {
         type,
         id,
       },
-      meta: this._meta(),
+      meta: this.meta(),
     };
 
     await this.transform(operation);
@@ -167,7 +166,7 @@ export class Store {
         relationship,
       },
       data,
-      meta: this._meta(),
+      meta: this.meta(),
     };
 
     await this.transform(operation);
@@ -186,7 +185,7 @@ export class Store {
         relationship,
       },
       data,
-      meta: this._meta(),
+      meta: this.meta(),
     };
 
     await this.transform(operation);
@@ -228,14 +227,14 @@ export class Store {
     };
   }
 
-  _meta() {
+  private meta() {
     return {
       id: uuid(),
       timestamp: this.#clock.inc(),
     };
   }
 
-  async _fetch(type: string, id: ID) {
+  private async fetchEntity(type: string, id: ID) {
     const response = await this.request('get', { id });
     if (!response) {
       return false;
@@ -252,36 +251,63 @@ export class Store {
     await this.push(operations);
   }
 
-  async _operationsFor(type: string, id: ID): Promise<Operation[]> {
-    const key = identity({ type, id });
-    let operations = this.#operations.get(key);
+  private async operationsFor(
+    id: ID,
+    include: string[] = []
+  ): Promise<Operation[]> {
+    console.time(`operationsFor: ${id}`);
+    let operations = this.#operations.get(id);
     if (!operations) {
       const db = await this.db();
       const data = await db.getAllFromIndex('operations', 'id', id);
       operations = data.sort(sortByTimestamp);
-      this.#operations.set(key, operations);
+      this.#operations.set(id, operations);
     }
+    if (include.length) {
+      const relatedEntities: Record<string, Set<string>> = {};
+      for (const operation of operations) {
+        if (
+          isAddToHasManyOperation(operation) &&
+          include.includes(operation.ref.relationship)
+        ) {
+          relatedEntities[operation.ref.relationship] ||= new Set();
+          relatedEntities[operation.ref.relationship].add(operation.data.id);
+        } else if (
+          isRemoveFromHasManyOperation(operation) &&
+          include.includes(operation.ref.relationship)
+        ) {
+          if (relatedEntities[operation.ref.relationship]) {
+            relatedEntities[operation.ref.relationship].delete(
+              operation.data.id
+            );
+          }
+        }
+      }
+      for (const id of Object.values(relatedEntities).flatMap((ids) => [
+        ...ids,
+      ])) {
+        operations.push(...(await this.operationsFor(id)));
+      }
+    }
+    console.timeEnd(`operationsFor: ${id}`);
     return operations;
   }
 
-  async _materialize<T = Entity>(type: string, id: ID): Promise<T | null> {
-    const operations = await this._operationsFor(type, id);
+  private async materializeEntity<T = Entity>(
+    id: ID,
+    include?: string[]
+  ): Promise<T | null> {
+    const operations = await this.operationsFor(id, include);
     if (operations.length) {
       const entity = materializeEntity(id, operations);
       if (entity) {
-        for (const [parent, field, { type, id }] of collectEntityLinks(
-          entity
-        )) {
-          const operations = await this._operationsFor(type, id);
-          materializeEntityLink([parent, field, { type, id }], operations);
-        }
         return Object.freeze(entity) as T;
       }
     }
     return null;
   }
 
-  async transform(operation: Operation | Operation[], sync?: string) {
+  private async transform(operation: Operation | Operation[], sync?: string) {
     const db = await this.db();
     const tx = db.transaction('operations', 'readwrite');
     const operations = Array.isArray(operation) ? operation : [operation];
@@ -298,8 +324,7 @@ export class Store {
     }
     await tx.done;
     for (const operation of operations) {
-      const key = identity(operation.ref);
-      this.#operations.delete(key);
+      this.#operations.delete(operation.ref.id);
 
       for (const handler of this.eventHandlersFor(operation.ref.type)) {
         handler(operation);

@@ -7,7 +7,7 @@ import { List, useEntitiesQuery, useEntityMutation } from '../hooks';
 import { Loader } from './Loader';
 
 export function Landing() {
-  const { data } = useEntitiesQuery<List>('list');
+  const { data } = useEntitiesQuery<List>('list', { include: ['items'] });
   const mutation = useEntityMutation('list');
 
   if (!data) {

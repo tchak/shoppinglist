@@ -5,7 +5,6 @@ import {
   useQueryClient,
   QueryObserverResult,
   UseMutationResult,
-  QueryClient,
 } from 'react-query';
 
 import { Store } from './store';
@@ -26,19 +25,23 @@ export interface Item {
   checked: boolean;
 }
 
-const store = new Store({ name: 'shoppinglist' });
+const _store_ = new Store({ name: 'shoppinglist' });
 
 export function useEntitiesQuery<T = Entity>(
-  type: string
+  type: string,
+  options?: { include?: string[] }
 ): QueryObserverResult<T[]> {
-  return useQuery<T[]>(type, () => store.find<T>(type));
+  return useQuery<T[]>(type, () => _store_.find<T>(type, options));
 }
 
 export function useEntityQuery<T = Entity>(
   type: string,
-  id: ID
+  id: ID,
+  options?: { include?: string[] }
 ): QueryObserverResult<T> {
-  return useQuery<T>([type, id], () => store.findOneOrFail<T>({ type, id }));
+  return useQuery<T>([type, id], () =>
+    _store_.findOneOrFail<T>({ type, id }, options)
+  );
 }
 
 enum MutationOp {
@@ -91,10 +94,12 @@ type Mutation =
   | RemoveFromMutation;
 
 class StoreMutation {
+  #store: Store;
   #type: string;
   #id?: ID;
 
-  constructor(type: string, id?: ID) {
+  constructor(store: Store, type: string, id?: ID) {
+    this.#store = store;
     this.#type = type;
     this.#id = id;
   }
@@ -115,27 +120,27 @@ class StoreMutation {
   }
 
   async [MutationOp.add](mutation: AddMutation): Promise<Identifier> {
-    const id = await store.add(this.#type, mutation.attributes);
+    const id = await this.#store.add(this.#type, mutation.attributes);
     return this.identifier(id);
   }
 
   async [MutationOp.update](mutation: UpdateMutation): Promise<Identifier> {
     const identifier = this.identifier(mutation.id);
-    await store.update(identifier, mutation.attributes);
+    await this.#store.update(identifier, mutation.attributes);
     return identifier;
   }
 
   async [MutationOp.remove](mutation: RemoveMutation): Promise<Identifier> {
     const identifier = this.identifier(mutation.id);
-    await store.remove(identifier);
+    await this.#store.remove(identifier);
     return identifier;
   }
 
   async [MutationOp.addTo](mutation: AddToMutation): Promise<Identifier> {
     const identifier = this.identifier(mutation.id);
-    await store.addToHasManyEntities(identifier, mutation.field, {
+    await this.#store.addToHasManyEntities(identifier, mutation.field, {
       type: mutation.data.type,
-      id: await store.add(mutation.data.type, mutation.data.attributes),
+      id: await this.#store.add(mutation.data.type, mutation.data.attributes),
     });
     return identifier;
   }
@@ -144,7 +149,7 @@ class StoreMutation {
     mutation: RemoveFromMutation
   ): Promise<Identifier> {
     const identifier = this.identifier(mutation.id);
-    await store.removeFromHasManyEntities(
+    await this.#store.removeFromHasManyEntities(
       identifier,
       mutation.field,
       mutation.data
@@ -164,14 +169,9 @@ class StoreMutation {
 
 class MutationResult {
   #mutation: UseMutationResult<Identifier, void, Mutation>;
-  queryClient: QueryClient;
 
-  constructor(
-    mutation: UseMutationResult<Identifier, void, Mutation>,
-    queryClient: QueryClient
-  ) {
+  constructor(mutation: UseMutationResult<Identifier, void, Mutation>) {
     this.#mutation = mutation;
-    this.queryClient = queryClient;
   }
 
   add(attributes: Attributes) {
@@ -221,7 +221,10 @@ class MutationResult {
 
 export function useEntityMutation(type: string, id?: ID) {
   const queryClient = useQueryClient();
-  const storeMutation = useMemo(() => new StoreMutation(type, id), [type, id]);
+  const storeMutation = useMemo(() => new StoreMutation(_store_, type, id), [
+    type,
+    id,
+  ]);
   const mutation = useMutation<Identifier, void, Mutation>(
     (mutation) => storeMutation.run(mutation),
     {
@@ -231,5 +234,5 @@ export function useEntityMutation(type: string, id?: ID) {
       },
     }
   );
-  return useMemo(() => new MutationResult(mutation, queryClient), [mutation]);
+  return useMemo(() => new MutationResult(mutation), [mutation]);
 }

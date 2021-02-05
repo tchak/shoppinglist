@@ -10,7 +10,7 @@ import { ActiveItemsList, CheckedOffItemsList } from './ItemsList';
 
 export function ListComponent() {
   const { id } = useParams();
-  const { data } = useEntityQuery<List>('list', id);
+  const { data } = useEntityQuery<List>('list', id, { include: ['items'] });
   const listMutation = useEntityMutation('list', id);
   const itemMutation = useEntityMutation('item');
 

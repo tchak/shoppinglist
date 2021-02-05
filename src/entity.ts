@@ -15,7 +15,10 @@ export type Entity = Identifier & Record<string, unknown | Entity[]>;
 export type EntityLink = [Entity, string, Entity];
 
 function isRemoved(operations: Operation[]) {
-  return operations.find((operation) => isRemoveEntityOperation(operation));
+  return (
+    operations.length === 0 ||
+    operations.find((operation) => isRemoveEntityOperation(operation))
+  );
 }
 
 function assignAttributes(entity: Entity, attributes?: Attributes): Entity {
@@ -31,10 +34,15 @@ export function materializeEntity(
   id: ID,
   operations: Operation[]
 ): Entity | null {
-  if (isRemoved(operations)) {
+  const operationsById: Record<ID, Operation[]> = {};
+  for (const operation of operations) {
+    operationsById[operation.ref.id] ||= [];
+    operationsById[operation.ref.id].push(operation);
+  }
+  if (isRemoved(operationsById[id])) {
     return null;
   }
-  return operations.reduce(
+  return operationsById[id].reduce(
     (entity, operation) => {
       if (isAddEntityOperation(operation)) {
         entity.type = operation.ref.type;
@@ -42,22 +50,21 @@ export function materializeEntity(
       } else if (isUpdateEntityOperation(operation)) {
         assignAttributes(entity, operation.data.attributes);
       } else if (isAddToHasManyOperation(operation)) {
-        entity[operation.ref.relationship] ||= [];
-        const relationship = entity[operation.ref.relationship];
-        if (Array.isArray(relationship)) {
-          relationship.push(markEntity(operation.data));
-        }
-      } else if (isRemoveFromHasManyOperation(operation)) {
-        const relationship = entity[operation.ref.relationship];
-        if (Array.isArray(relationship)) {
-          entity[operation.ref.relationship] = relationship.filter(
-            (entity) => entity.id !== operation.data.id
-          );
+        if (operationsById[operation.data.id]) {
+          entity[operation.ref.relationship] ||= [];
+          const value = entity[operation.ref.relationship];
+          if (Array.isArray(value)) {
+            const maybeEntity = materializeEntity(
+              operation.data.id,
+              operationsById[operation.data.id]
+            );
+            if (maybeEntity) {
+              value.push(maybeEntity);
+            }
+          }
         }
       } else if (isReplaceHasOneOperation(operation)) {
-        if (operation.data) {
-          entity[operation.ref.relationship] = markEntity(operation.data);
-        } else {
+        if (!operation.data) {
           entity[operation.ref.relationship] = null;
         }
       }
@@ -66,55 +73,3 @@ export function materializeEntity(
     { id } as Entity
   );
 }
-
-export function materializeEntityLink(
-  [parent, key, { id }]: EntityLink,
-  operations: Operation[]
-) {
-  const entity = materializeEntity(id, operations);
-  if (entity) {
-    if (Array.isArray(parent[key])) {
-      (parent[key] as Entity[]).push(entity);
-    } else {
-      parent[key] = entity;
-    }
-  }
-}
-
-export function collectEntityLinks(entity: Entity): EntityLink[] {
-  const links: EntityLink[] = [];
-  const collections = new Set<string>();
-
-  for (const [key, value] of Object.entries(entity)) {
-    if (Array.isArray(value)) {
-      for (const maybeEntity of value) {
-        if (isEntity(maybeEntity)) {
-          collections.add(key);
-          links.push([entity, key, maybeEntity]);
-          links.push(...collectEntityLinks(maybeEntity));
-        }
-      }
-    } else if (isEntity(value)) {
-      links.push([entity, key, value]);
-      links.push(...collectEntityLinks(value));
-    }
-  }
-
-  for (const key of collections) {
-    entity[key] = [];
-  }
-
-  return links;
-}
-
-function isEntity(entity: unknown): entity is Entity {
-  return !!entity && IS_ENTITY.has(entity as Entity);
-}
-
-function markEntity(entity: Entity): Entity {
-  entity = { ...entity };
-  IS_ENTITY.add(entity);
-  return entity;
-}
-
-const IS_ENTITY = new WeakSet<Entity>();
