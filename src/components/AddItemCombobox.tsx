@@ -6,8 +6,10 @@ import {
   ComboboxList,
   ComboboxOption,
 } from '@reach/combobox';
+import { matchSorter } from 'match-sorter';
+import { useThrottledCallback } from 'use-debounce';
 
-const items = ['Apple', 'Banana', 'Orange', 'Pineapple', 'Kiwi'];
+import food from '../data/food';
 
 export function AddItemCombobox({
   onSelect,
@@ -15,6 +17,7 @@ export function AddItemCombobox({
   onSelect: (value: string) => void;
 }) {
   const [term, setTerm] = useState('');
+  const items = useFoodMatch(term);
   return (
     <div className="mt-2">
       <Combobox
@@ -31,18 +34,38 @@ export function AddItemCombobox({
           value={term}
           onChange={({ currentTarget: { value } }) => setTerm(value)}
         />
-        <ComboboxPopover className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-          <ComboboxList persistSelection className="py-1">
-            {items.map((value) => (
-              <ComboboxOption
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                key={value}
-                value={value}
-              />
-            ))}
-          </ComboboxList>
-        </ComboboxPopover>
+        {items && (
+          <ComboboxPopover className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+            <ComboboxList persistSelection className="py-1">
+              {items.length > 0 ? (
+                items.map((value) => (
+                  <ComboboxOption
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                    key={value}
+                    value={value}
+                  />
+                ))
+              ) : (
+                <ComboboxOption
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  value={term}
+                />
+              )}
+            </ComboboxList>
+          </ComboboxPopover>
+        )}
       </Combobox>
     </div>
   );
+}
+
+function useFoodMatch(term: string) {
+  const [items, setItems] = useState<null | string[]>(null);
+  const match = useThrottledCallback(
+    (term: string) =>
+      setItems(term.trim() === '' ? null : matchSorter(food, term)),
+    100
+  );
+  requestAnimationFrame(() => match.callback(term));
+  return items;
 }
