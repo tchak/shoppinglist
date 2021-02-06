@@ -82,15 +82,20 @@ export class Store {
     options?: { fetch?: boolean; include?: string[] }
   ): Promise<T | null> {
     if (options?.fetch) {
-      await this.fetchEntity(type, id);
+      await this.fetchEntity(id, options?.include);
     }
     return this.materializeEntity<T>(id, options?.include);
   }
 
   async findOneOrFail<T = Entity>(
-    { id }: Identifier,
-    options?: { include?: string[] }
+    { type, id }: Identifier,
+    options?: { fetch?: boolean; include?: string[] }
   ) {
+    if (options?.fetch) {
+      console.log('fetch!');
+      await this.fetchEntity(id, options?.include);
+      console.log('fetched!');
+    }
     const entity = await this.materializeEntity<T>(id, options?.include);
     if (entity) {
       return entity;
@@ -200,17 +205,20 @@ export class Store {
 
   async sync() {
     const db = await this.db();
-    const tx = db.transaction('operations', 'readwrite');
-    const operations = await tx.store.index('sync').getAll();
+    const operations = await db.getAllFromIndex(
+      'operations',
+      'sync',
+      'pending'
+    );
 
     const response = await this.request('post', {
       'atomic:operations': operations,
     });
     if (!response) {
-      tx.abort();
       return false;
     }
 
+    const tx = db.transaction('operations', 'readwrite');
     const sync = this.#clock.inc();
     for (const operation of operations) {
       await tx.store.put({ ...operation, meta: { ...operation.meta, sync } });
@@ -234,21 +242,29 @@ export class Store {
     };
   }
 
-  private async fetchEntity(type: string, id: ID) {
-    const response = await this.request('get', { id });
+  private async fetchEntity(id: ID, include?: string[]) {
+    const response = await this.request('get', { id, include });
     if (!response) {
       return false;
     }
 
     const data: { 'atomic:operations': Operation[] } = await response.json();
 
-    const db = await this.db();
-    const keys = await db.getAllKeysFromIndex('operations', 'id', id);
+    if (data['atomic:operations'].length) {
+      const db = await this.db();
+      const keys = await db.getAllKeysFromIndex('operations', 'id', id);
+      const includedKeys = await db.getAllKeysFromIndex(
+        'operations',
+        'type',
+        'item'
+      );
+      const existingKeys = [...new Set([...keys, ...includedKeys])];
 
-    const operations = data['atomic:operations'].filter(
-      (operation) => !keys.includes(operation.meta.id)
-    );
-    await this.push(operations);
+      const operations = data['atomic:operations'].filter(
+        (operation) => !existingKeys.includes(operation.meta.id)
+      );
+      await this.push(operations);
+    }
   }
 
   private async operationsFor(
@@ -307,7 +323,10 @@ export class Store {
     return null;
   }
 
-  private async transform(operation: Operation | Operation[], sync?: string) {
+  private async transform(
+    operation: Operation | Operation[],
+    sync = 'pending'
+  ) {
     const db = await this.db();
     const tx = db.transaction('operations', 'readwrite');
     const operations = Array.isArray(operation) ? operation : [operation];
@@ -336,27 +355,31 @@ export class Store {
         handler(operation);
       }
     }
+
+    requestAnimationFrame(() => this.sync());
   }
 
   private async request(method: 'get' | 'post' = 'get', data?: unknown) {
     try {
+      const isPost = method === 'post';
       const response = await fetch(
-        method === 'post' ? this.#url : this.buildRequestURL(data),
+        isPost ? this.#url : this.buildRequestURL(data),
         {
           method,
           headers: {
             ...this.#headers,
             'x-store-node': this.#node,
-            ...(data ? { 'content-type': 'application/json' } : undefined),
+            ...(isPost ? { 'content-type': 'application/json' } : undefined),
           },
-          body: data ? JSON.stringify(data) : undefined,
+          ...(isPost ? { body: JSON.stringify(data) } : undefined),
         }
       );
 
       if (response.ok) {
         return response;
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
 
@@ -371,7 +394,7 @@ export class Store {
       )) {
         params.set(key, value);
       }
-      return this.#url + params.toString();
+      return `${this.#url}?${params.toString()}`;
     }
     return this.#url;
   }

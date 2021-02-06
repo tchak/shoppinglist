@@ -10,7 +10,10 @@ import { ActiveItemsList, CheckedOffItemsList } from './ItemsList';
 
 export function ListComponent() {
   const { id } = useParams();
-  const { data } = useEntityQuery<List>('list', id, { include: ['items'] });
+  const { data, isLoading } = useEntityQuery<List>('list', id, {
+    include: ['items'],
+    fetch: true,
+  });
   const listMutation = useEntityMutation('list', id);
   const itemMutation = useEntityMutation('item');
 
@@ -26,8 +29,12 @@ export function ListComponent() {
     [listMutation, itemMutation]
   );
 
-  if (!data) {
+  if (isLoading) {
     return <Loader />;
+  }
+
+  if (!data) {
+    return <>Error</>;
   }
 
   const title = data.title;

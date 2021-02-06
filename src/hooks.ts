@@ -43,7 +43,9 @@ export function useEntitiesQuery<T = Entity>(
   options?: { include?: string[] }
 ): QueryObserverResult<T[]> {
   const store = useStore();
-  return useQuery<T[]>(type, () => store.find<T>(type, options));
+  return useQuery<T[]>([type, 'all', options], () =>
+    store.find<T>(type, options)
+  );
 }
 
 export function useEntityQuery<T = Entity>(
@@ -52,7 +54,7 @@ export function useEntityQuery<T = Entity>(
   options?: { include?: string[]; fetch?: boolean }
 ): QueryObserverResult<T> {
   const store = useStore();
-  return useQuery<T>([type, id], () =>
+  return useQuery<T>([type, id, options], () =>
     store.findOneOrFail<T>({ type, id }, options)
   );
 }
@@ -243,7 +245,7 @@ export function useEntityMutation(type: string, id?: ID) {
     (mutation) => storeMutation.run(mutation),
     {
       onSuccess({ type, id }) {
-        queryClient.invalidateQueries(type);
+        queryClient.invalidateQueries([type, 'all']);
         queryClient.invalidateQueries([type, id]);
       },
     }
