@@ -1,8 +1,8 @@
 import reactRefresh from '@vitejs/plugin-react-refresh';
 import legacy from '@vitejs/plugin-legacy';
+import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vite';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     reactRefresh({
@@ -10,6 +10,12 @@ export default defineConfig({
     }),
     legacy({
       targets: ['defaults', 'not IE 11'],
+    }),
+    VitePWA({
+      manifest: {
+        name: 'Shoppinglist',
+        short_name: 'Shoppinglist',
+      },
     }),
   ],
 });
