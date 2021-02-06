@@ -17,7 +17,6 @@ import { Identifier, Entity, materializeEntity } from './entity';
 
 export interface StoreSettings {
   name?: string;
-  node?: string;
   url?: string;
   headers?: Record<string, string>;
 }
@@ -26,30 +25,47 @@ type EventCallback = (operation: Operation) => void;
 
 export class Store {
   #name: string;
-  #node: string;
   #url: string;
   #headers?: Record<string, string>;
 
   #operations = new Map<string, Operation[]>();
   #events = new Map<string, Set<EventCallback>>();
-  #clock: Clock;
+
+  #node?: string;
+  #clock?: Clock;
   #db?: DB;
 
   constructor(settings?: StoreSettings) {
     this.#name = settings?.name ?? 'store';
-    this.#node = settings?.node ?? clientId();
     this.#url = settings?.url ?? '/operations';
     this.#headers = settings?.headers;
-    this.#clock = new Clock(this.#node);
   }
 
   get node() {
+    if (!this.#node) {
+      throw new Error('Store failed to initialize');
+    }
     return this.#node;
+  }
+
+  get clock() {
+    if (!this.#clock) {
+      throw new Error('Store failed to initialize');
+    }
+    return this.#clock;
   }
 
   async db() {
     if (!this.#db) {
       this.#db = await createDB(this.#name);
+      const node = await this.#db.get('meta', 'node');
+      if (node) {
+        this.#node = node;
+      } else {
+        this.#node = uuid();
+        await this.#db.put('meta', this.#node, 'node');
+      }
+      this.#clock = new Clock(this.#node);
     }
     return this.#db;
   }
@@ -92,9 +108,7 @@ export class Store {
     options?: { fetch?: boolean; include?: string[] }
   ) {
     if (options?.fetch) {
-      console.log('fetch!');
       await this.fetchEntity(id, options?.include);
-      console.log('fetched!');
     }
     const entity = await this.materializeEntity<T>(id, options?.include);
     if (entity) {
@@ -198,9 +212,9 @@ export class Store {
 
   async push(operations: Operation[]) {
     for (const operation of operations) {
-      this.#clock.recv(operation.meta.timestamp);
+      this.clock.recv(operation.meta.timestamp);
     }
-    await this.transform(operations, this.#clock.inc());
+    await this.transform(operations, this.clock.inc());
   }
 
   async sync() {
@@ -211,6 +225,10 @@ export class Store {
       'pending'
     );
 
+    if (operations.length === 0) {
+      return true;
+    }
+
     const response = await this.request('post', {
       'atomic:operations': operations,
     });
@@ -219,7 +237,7 @@ export class Store {
     }
 
     const tx = db.transaction('operations', 'readwrite');
-    const sync = this.#clock.inc();
+    const sync = this.clock.inc();
     for (const operation of operations) {
       await tx.store.put({ ...operation, meta: { ...operation.meta, sync } });
     }
@@ -238,7 +256,7 @@ export class Store {
   private meta() {
     return {
       id: uuid(),
-      timestamp: this.#clock.inc(),
+      timestamp: this.clock.inc(),
     };
   }
 
@@ -259,7 +277,6 @@ export class Store {
         'item'
       );
       const existingKeys = [...new Set([...keys, ...includedKeys])];
-
       const operations = data['atomic:operations'].filter(
         (operation) => !existingKeys.includes(operation.meta.id)
       );
@@ -360,6 +377,10 @@ export class Store {
   }
 
   private async request(method: 'get' | 'post' = 'get', data?: unknown) {
+    if (!this.#url) {
+      return false;
+    }
+    await this.db();
     try {
       const isPost = method === 'post';
       const response = await fetch(
@@ -368,7 +389,7 @@ export class Store {
           method,
           headers: {
             ...this.#headers,
-            'x-store-node': this.#node,
+            'x-store-node': this.node,
             ...(isPost ? { 'content-type': 'application/json' } : undefined),
           },
           ...(isPost ? { body: JSON.stringify(data) } : undefined),
@@ -411,6 +432,10 @@ export class Store {
 }
 
 interface Schema extends DBSchema {
+  meta: {
+    key: string;
+    value: string;
+  };
   operations: {
     key: string;
     value: Operation;
@@ -429,6 +454,8 @@ type DB = IDBPDatabase<Schema>;
 function createDB(name: string) {
   return openDB<Schema>(name, 1, {
     upgrade(db) {
+      db.createObjectStore('meta');
+
       const store = db.createObjectStore('operations', {
         keyPath: 'meta.id',
       });
@@ -447,14 +474,4 @@ function sortByTimestamp(a: Operation, b: Operation) {
 
 function identity({ type, id }: { type: string; id: ID }) {
   return `${type}:${id}`;
-}
-
-const CLIENT_ID = 'store-client-id';
-function clientId(): string {
-  let id = localStorage.getItem(CLIENT_ID);
-  if (!id) {
-    id = uuid();
-    localStorage.setItem(CLIENT_ID, id);
-  }
-  return id;
 }
