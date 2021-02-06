@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, createContext, useContext } from 'react';
 import {
   useQuery,
   useMutation,
@@ -25,22 +25,35 @@ export interface Item {
   checked: boolean;
 }
 
-const _store_ = new Store({ name: 'shoppinglist' });
+const StoreContext = createContext<Store | undefined>(undefined);
+const StoreProvider = StoreContext.Provider;
+
+export { Store, StoreProvider };
+
+export function useStore(): Store {
+  const store = useContext(StoreContext);
+  if (store) {
+    return store;
+  }
+  throw new Error('Store is undefined');
+}
 
 export function useEntitiesQuery<T = Entity>(
   type: string,
   options?: { include?: string[] }
 ): QueryObserverResult<T[]> {
-  return useQuery<T[]>(type, () => _store_.find<T>(type, options));
+  const store = useStore();
+  return useQuery<T[]>(type, () => store.find<T>(type, options));
 }
 
 export function useEntityQuery<T = Entity>(
   type: string,
   id: ID,
-  options?: { include?: string[] }
+  options?: { include?: string[]; fetch?: boolean }
 ): QueryObserverResult<T> {
+  const store = useStore();
   return useQuery<T>([type, id], () =>
-    _store_.findOneOrFail<T>({ type, id }, options)
+    store.findOneOrFail<T>({ type, id }, options)
   );
 }
 
@@ -221,7 +234,8 @@ class MutationResult {
 
 export function useEntityMutation(type: string, id?: ID) {
   const queryClient = useQueryClient();
-  const storeMutation = useMemo(() => new StoreMutation(_store_, type, id), [
+  const store = useStore();
+  const storeMutation = useMemo(() => new StoreMutation(store, type, id), [
     type,
     id,
   ]);
