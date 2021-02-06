@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from 'react-query';
 
 import { List, useEntityQuery, useEntityMutation } from '../hooks';
 import { Loader } from './Loader';
@@ -17,8 +18,16 @@ export function ListComponent() {
   const listMutation = useEntityMutation('list', id);
   const itemMutation = useEntityMutation('item');
 
+  // HORRIBLE HACK!
+  const client = useQueryClient();
+  const listId = id;
+
   const onToggle = useCallback(
-    (id, checked) => itemMutation.update({ checked }, id),
+    async (id, checked) => {
+      await itemMutation.update({ checked }, id);
+      // HORRIBLE HACK!
+      setTimeout(() => client.invalidateQueries(['list', listId]), 200);
+    },
     [itemMutation]
   );
   const onRemove = useCallback(
