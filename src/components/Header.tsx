@@ -11,6 +11,7 @@ export function Header() {
   return (
     <div className="flex items-center justify-between flex-wrap sm:flex-nowrap">
       <NavLink to="/">
+        <h1 className="sr-only">Shoppinglist</h1>
         <HiClipboardCheck className="text-gray-900 text-4xl" />
       </NavLink>
       <div className="ml-4 flex-shrink-0">

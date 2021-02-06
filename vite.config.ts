@@ -15,6 +15,8 @@ export default defineConfig({
       manifest: {
         name: 'Shoppinglist',
         short_name: 'Shoppinglist',
+        background_color: 'rgb(5,150,105)',
+        theme_color: 'rgb(229,231,235)',
       },
     }),
   ],
