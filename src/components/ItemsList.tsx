@@ -166,7 +166,7 @@ function Slider({
       <CheckedIcon className="text-5xl mx-4 my-2 text-white" />
       <HiTrash className="text-5xl mx-4 my-2 text-white" />
       <animated.div
-        className="slider bg-white w-full absolute inset-0 flex"
+        className="bg-white w-full absolute inset-0 flex"
         style={{
           transform: x.interpolate((x) => `translate3d(${x}px,0,0)`),
         }}
