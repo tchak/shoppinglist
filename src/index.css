@@ -5,3 +5,15 @@
 [data-highlighted] {
   @apply bg-gray-100 text-gray-900;
 }
+
+.slider {
+  cursor: -webkit-grab;
+}
+
+.slider:active {
+  cursor: -webkit-grabbing;
+}
+
+.slider > * {
+  pointer-events: none;
+}
