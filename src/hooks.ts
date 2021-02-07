@@ -1,4 +1,4 @@
-import { useMemo, createContext, useContext } from 'react';
+import { useMemo, createContext, useContext, useEffect } from 'react';
 import {
   useQuery,
   useMutation,
@@ -51,9 +51,17 @@ export function useEntitiesQuery<T = Entity>(
 export function useEntityQuery<T = Entity>(
   type: string,
   id: ID,
-  options?: { include?: string[]; fetch?: boolean }
+  options?: { include?: string[]; fetch?: boolean; subscribe?: boolean }
 ): QueryObserverResult<T> {
+  const queryClient = useQueryClient();
   const store = useStore();
+  useEffect(() => {
+    if (options?.subscribe) {
+      return store.subscribe(type, id, () => {
+        queryClient.invalidateQueries([type, id]);
+      });
+    }
+  });
   return useQuery<T>([type, id, options], () =>
     store.findOneOrFail<T>({ type, id }, options)
   );

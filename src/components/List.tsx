@@ -14,6 +14,7 @@ export function ListComponent() {
   const { data, isLoading } = useEntityQuery<List>('list', id, {
     include: ['items'],
     fetch: true,
+    subscribe: true,
   });
   const listMutation = useEntityMutation('list', id);
   const itemMutation = useEntityMutation('item');

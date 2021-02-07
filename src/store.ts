@@ -1,5 +1,7 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { v4 as uuid } from 'uuid';
+import { createNanoEvents } from 'nanoevents';
+import { io, Socket } from 'socket.io-client';
 
 import { Clock, cmp, unpack } from './hlc';
 import {
@@ -18,6 +20,7 @@ import { Identifier, Entity, materializeEntity } from './entity';
 export interface StoreSettings {
   name?: string;
   url?: string;
+  endpoint?: string;
   headers?: Record<string, string>;
 }
 
@@ -26,18 +29,21 @@ type EventCallback = (operation: Operation) => void;
 export class Store {
   #name: string;
   #url: string;
+  #endpoint: string;
   #headers?: Record<string, string>;
 
   #operations = new Map<string, Operation[]>();
-  #events = new Map<string, Set<EventCallback>>();
+  #emitter = createNanoEvents();
 
   #node?: string;
   #clock?: Clock;
   #db?: DB;
+  #socket?: Socket;
 
   constructor(settings?: StoreSettings) {
     this.#name = settings?.name ?? 'store';
-    this.#url = settings?.url ?? '/operations';
+    this.#url = settings?.url ?? '/';
+    this.#endpoint = settings?.endpoint ?? 'operations';
     this.#headers = settings?.headers;
   }
 
@@ -65,6 +71,12 @@ export class Store {
         this.#node = uuid();
         await this.#db.put('meta', this.#node, 'node');
       }
+      this.#socket = io(this.#url, {
+        transports: ['websocket'],
+        query: {
+          node: this.#node,
+        },
+      });
       this.#clock = new Clock(this.#node);
     }
     return this.#db;
@@ -245,11 +257,36 @@ export class Store {
     return true;
   }
 
-  subscribe(callback: EventCallback, type: string, id?: ID): () => void {
-    this.eventHandlersFor(type, id).add(callback);
+  on(type: string, callback: EventCallback): () => void;
+  on(type: string, id: ID, callback: EventCallback): () => void;
+  on(
+    type: string,
+    idOrCallback: ID | EventCallback,
+    callback?: EventCallback
+  ): () => void {
+    if (typeof idOrCallback === 'function') {
+      return this.#emitter.on(`change:${type}`, idOrCallback);
+    }
+    return this.#emitter.on(
+      `change:${type}:${idOrCallback}`,
+      callback as EventCallback
+    );
+  }
 
+  subscribe(type: string, id: ID, callback: () => void): () => void {
+    const _callback = async (operations: Operation[]) => {
+      await this.push(operations);
+      callback();
+    };
+    if (this.#socket) {
+      this.#socket.emit('subscribe', { type, id });
+      this.#socket.on('operations', _callback);
+    }
     return () => {
-      this.eventHandlersFor(type, id).delete(callback);
+      if (this.#socket) {
+        this.#socket.emit('unsubscribe', { type, id });
+        this.#socket.off('operations', _callback);
+      }
     };
   }
 
@@ -361,16 +398,11 @@ export class Store {
     await tx.done;
     for (const operation of operations) {
       this.#operations.delete(operation.ref.id);
-
-      for (const handler of this.eventHandlersFor(operation.ref.type)) {
-        handler(operation);
-      }
-      for (const handler of this.eventHandlersFor(
-        operation.ref.type,
-        operation.ref.id
-      )) {
-        handler(operation);
-      }
+      this.#emitter.emit(`change:${operation.ref.type}`, operation);
+      this.#emitter.emit(
+        `change:${operation.ref.type}:${operation.ref.id}`,
+        operation
+      );
     }
 
     requestAnimationFrame(() => this.sync());
@@ -382,19 +414,16 @@ export class Store {
     }
     await this.db();
     try {
-      const isPost = method === 'post';
-      const response = await fetch(
-        isPost ? this.#url : this.buildRequestURL(data),
-        {
-          method,
-          headers: {
-            ...this.#headers,
-            'x-store-node': this.node,
-            ...(isPost ? { 'content-type': 'application/json' } : undefined),
-          },
-          ...(isPost ? { body: JSON.stringify(data) } : undefined),
-        }
-      );
+      const isPost = method == 'post';
+      const response = await fetch(this.buildRequestURL(method, data), {
+        method,
+        headers: {
+          ...this.#headers,
+          'x-store-node': this.node,
+          ...(isPost ? { 'content-type': 'application/json' } : undefined),
+        },
+        ...(isPost ? { body: JSON.stringify(data) } : undefined),
+      });
 
       if (response.ok) {
         return response;
@@ -407,27 +436,20 @@ export class Store {
     return false;
   }
 
-  private buildRequestURL(data?: unknown) {
-    if (data) {
+  private buildRequestURL(method: 'get' | 'post', data?: unknown) {
+    const url = `${this.#url}/${this.#endpoint}`;
+
+    if (method == 'get' && data) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(
         data as Record<string, string>
       )) {
         params.set(key, value);
       }
-      return `${this.#url}?${params.toString()}`;
+      return `${url}?${params.toString()}`;
     }
-    return this.#url;
-  }
 
-  private eventHandlersFor(type: string, id?: ID): Set<EventCallback> {
-    const key = id ? identity({ type, id }) : type;
-    let handlers = this.#events.get(key);
-    if (!handlers) {
-      handlers = new Set();
-      this.#events.set(key, handlers);
-    }
-    return handlers;
+    return url;
   }
 }
 
