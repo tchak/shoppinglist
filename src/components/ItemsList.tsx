@@ -59,7 +59,7 @@ function ListItem({
   onRemove,
 }: Item & ListItemProps) {
   const [swipe, setSwipe] = useState(0);
-  const Icon = checked ? HiPlus : HiCheck;
+  const CheckedIcon = checked ? HiPlus : HiCheck;
   const isChecking = swipe === 1;
   const isRemoving = swipe === -1;
 
@@ -68,10 +68,12 @@ function ListItem({
       {isChecking && (
         <div className="flex justify-between flex-grow relative pointer-events-auto bg-blue-500">
           <button type="button" onClick={() => onToggle(id, !checked)}>
-            <Icon className="text-5xl mx-4 my-2 text-white" />
+            <CheckedIcon className="text-5xl mx-4 my-2 text-white" />
+            <span className="sr-only">Check</span>
           </button>
           <button onClick={() => setSwipe(0)}>
             <HiX className="text-5xl mx-4 my-2 text-white" />
+            <span className="sr-only">Cancel</span>
           </button>
         </div>
       )}
@@ -79,23 +81,25 @@ function ListItem({
         <div className="flex justify-between flex-grow relative pointer-events-auto bg-red-500">
           <button onClick={() => setSwipe(0)}>
             <HiX className="text-5xl mx-4 my-2 text-white" />
+            <span className="sr-only">Remove</span>
           </button>
           <button type="button" onClick={() => onRemove(id)}>
             <HiTrash className="text-5xl mx-4 my-2 text-white" />
+            <span className="sr-only">Cancel</span>
           </button>
         </div>
       )}
       {!isChecking && !isRemoving && (
-        <Slider swipe={setSwipe}>
+        <Slider CheckedIcon={CheckedIcon} swipe={setSwipe}>
           <div className="ml-3 flex-grow">
             <p
-              className={`text-sm font-medium text-gray-900 ${
+              className={`text-lg text-gray-900 ${
                 checked ? 'line-through' : ''
               }`}
             >
               {title}
             </p>
-            <p className="text-sm text-gray-500">note</p>
+            <p className="text-sm text-gray-500"></p>
           </div>
 
           <button
@@ -103,7 +107,8 @@ function ListItem({
             type="button"
             onClick={() => onToggle(id, !checked)}
           >
-            <Icon className="hover:text-green-500 text-2xl" />
+            <CheckedIcon className="hover:text-green-500 text-2xl" />
+            <span className="sr-only">Un check</span>
           </button>
           <button
             className="ml-3 opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
@@ -111,6 +116,7 @@ function ListItem({
             onClick={() => onRemove(id)}
           >
             <HiTrash className="hover:text-red-500 text-2xl" />
+            <span className="sr-only">Remove</span>
           </button>
         </Slider>
       )}
@@ -120,11 +126,14 @@ function ListItem({
 
 function Slider({
   swipe,
+  CheckedIcon,
   children,
 }: {
   swipe: (position: number) => void;
+  CheckedIcon: typeof HiPlus | typeof HiCheck;
   children: ReactNode[];
 }) {
+  const [isRemoving, setRemoving] = useState(false);
   const [{ x }, setSpring] = useSpring<{ x: number }>(() => ({
     x: 0,
   }));
@@ -135,6 +144,7 @@ function Slider({
         immediate: down,
       });
       swipe(swipeX);
+      setRemoving(mx < 0);
     },
     {
       axis: 'x',
@@ -149,9 +159,12 @@ function Slider({
   return (
     <animated.div
       {...bind()}
-      className={`flex-grow relative pointer-events-auto bg-gradient-to-r from-blue-500 to-blue-200`}
+      className={`flex justify-between flex-grow relative pointer-events-auto bg-gradient-to-r ${
+        isRemoving ? 'from-red-300 to-red-500' : 'from-blue-500 to-blue-300'
+      }`}
     >
-      <HiCheck className="text-5xl mx-4 my-2 text-white" />
+      <CheckedIcon className="text-5xl mx-4 my-2 text-white" />
+      <HiTrash className="text-5xl mx-4 my-2 text-white" />
       <animated.div
         className="slider bg-white w-full absolute inset-0 flex"
         style={{
