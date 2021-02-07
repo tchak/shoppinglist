@@ -57,7 +57,7 @@ export function useEntityQuery<T = Entity>(
   const store = useStore();
   useEffect(() => {
     if (options?.subscribe) {
-      return store.subscribe(type, id, () => {
+      return store.subscribe(type, id, { include: options?.include }, () => {
         queryClient.invalidateQueries([type, id]);
       });
     }

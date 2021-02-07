@@ -273,18 +273,35 @@ export class Store {
     );
   }
 
-  subscribe(type: string, id: ID, callback: () => void): () => void {
+  subscribe(type: string, id: ID, callback: () => void): () => void;
+  subscribe(
+    type: string,
+    id: ID,
+    options: { include?: string[] },
+    callback: () => void
+  ): () => void;
+  subscribe(
+    type: string,
+    id: ID,
+    optionsOrCallback?: { include?: string[] } | (() => void),
+    maybeCallback?: () => void
+  ): () => void {
+    const options =
+      typeof optionsOrCallback == 'function' ? undefined : optionsOrCallback;
+    const callback = maybeCallback ? maybeCallback : optionsOrCallback;
+
     const _callback = async (operations: Operation[]) => {
       await this.push(operations);
-      callback();
+      (callback as () => void)();
     };
+
     if (this.#socket) {
-      this.#socket.emit('subscribe', { type, id });
+      this.#socket.emit('subscribe', { type, id, ...options });
       this.#socket.on('operations', _callback);
     }
     return () => {
       if (this.#socket) {
-        this.#socket.emit('unsubscribe', { type, id });
+        this.#socket.emit('unsubscribe', { type, id, ...options });
         this.#socket.off('operations', _callback);
       }
     };
