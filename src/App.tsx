@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { ErrorBoundary } from '@sentry/react';
+import { ErrorBoundary, withProfiler } from '@sentry/react';
 
 import { Store, StoreProvider } from './hooks';
 import { ErrorFallback } from './components/ErrorFallback';
@@ -51,4 +51,4 @@ function App() {
   );
 }
 
-export default App;
+export default withProfiler(App);
