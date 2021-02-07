@@ -104,7 +104,7 @@ function Slider({ children }: { children: ReactNode[] }) {
         immediate: down,
       });
     },
-    { axis: 'x', lockDirection: true }
+    { axis: 'x', lockDirection: true, delay: 500, useTouch: true }
   );
 
   return (
