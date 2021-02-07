@@ -9,6 +9,10 @@ import { ListTitle } from './ListTitle';
 import { AddItemCombobox } from './AddItemCombobox';
 import { ActiveItemsList, CheckedOffItemsList } from './ItemsList';
 
+function sortBy<T>(array: T[], key: keyof T) {
+  return [...array].sort((a, b) => (b[key] as any) - (a[key] as any));
+}
+
 export function ListComponent() {
   const { id } = useParams();
   const { data, isLoading } = useEntityQuery<List>('list', id, {
@@ -48,8 +52,9 @@ export function ListComponent() {
   }
 
   const title = data.title;
-  const items = (data.items ?? []).filter(({ checked }) => !checked);
-  const checkedItems = (data.items ?? []).filter(({ checked }) => checked);
+  const sortedItems = sortBy(data.items ?? [], 'createdDate');
+  const items = sortedItems.filter(({ checked }) => !checked);
+  const checkedItems = sortedItems.filter(({ checked }) => checked);
 
   return (
     <div>

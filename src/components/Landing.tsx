@@ -6,6 +6,10 @@ import { List, useEntitiesQuery, useEntityMutation } from '../hooks';
 
 import { Loader } from './Loader';
 
+function sortBy<T>(array: T[], key: keyof T) {
+  return [...array].sort((a, b) => (b[key] as any) - (a[key] as any));
+}
+
 export function Landing() {
   const { data } = useEntitiesQuery<List>('list', { include: ['items'] });
   const mutation = useEntityMutation('list');
@@ -16,7 +20,7 @@ export function Landing() {
 
   return (
     <ul className="divide-y divide-gray-200">
-      {data.map(({ id, title }) => (
+      {sortBy(data, 'createdDate').map(({ id, title }) => (
         <li key={id} className="group py-4 flex">
           <div className="ml-3 flex-grow">
             <p className="text-sm font-medium text-gray-900">

@@ -17,12 +17,14 @@ export interface List {
   id: ID;
   title: string;
   items: Item[];
+  createdDate: Date;
 }
 
 export interface Item {
   id: ID;
   title: string;
   checked: boolean;
+  createdDate: Date;
 }
 
 const StoreContext = createContext<Store | undefined>(undefined);
