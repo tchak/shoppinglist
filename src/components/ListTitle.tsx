@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { HiPencil } from 'react-icons/hi';
 import { isHotkey } from 'is-hotkey';
-import { useDebouncedCallback } from 'use-debounce';
 
 const isEnterKey = isHotkey('enter');
 const isEscKey = isHotkey('esc');
@@ -14,14 +13,12 @@ export function ListTitle({
   onChange: (title: string) => void;
 }) {
   const [value, setValue] = useState(title);
-  const debounced = useDebouncedCallback((value) => onChange(value), 500);
   const [isEditing, setIsEditing] = useState(false);
   const open = () => setIsEditing(true);
   const close = useCallback(
     (value: string) => {
       setIsEditing(false);
       onChange(value);
-      setValue(value);
     },
     [onChange]
   );
@@ -40,7 +37,6 @@ export function ListTitle({
           value={value}
           autoFocus={true}
           onChange={({ currentTarget: { value } }) => {
-            debounced.callback(value);
             setValue(value);
           }}
           onBlur={({ currentTarget: { value } }) => close(value)}
