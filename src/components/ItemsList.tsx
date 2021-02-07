@@ -1,5 +1,5 @@
-import React, { ReactNode } from 'react';
-import { HiTrash, HiCheck, HiPlus } from 'react-icons/hi';
+import React, { useState, ReactNode } from 'react';
+import { HiTrash, HiCheck, HiPlus, HiX } from 'react-icons/hi';
 import {
   Disclosure,
   DisclosureButton,
@@ -58,53 +58,92 @@ function ListItem({
   onToggle,
   onRemove,
 }: Item & ListItemProps) {
+  const [swipe, setSwipe] = useState(0);
   const Icon = checked ? HiPlus : HiCheck;
+  const isChecking = swipe === 1;
+  const isRemoving = swipe === -1;
 
   return (
     <li className="group py-4 flex">
-      <Slider>
-        <div className="ml-3 flex-grow">
-          <p
-            className={`text-sm font-medium text-gray-900 ${
-              checked ? 'line-through' : ''
-            }`}
-          >
-            {title}
-          </p>
-          <p className="text-sm text-gray-500">note</p>
+      {isChecking && (
+        <div className="flex justify-between flex-grow relative pointer-events-auto bg-blue-500">
+          <button type="button" onClick={() => onToggle(id, !checked)}>
+            <Icon className="text-5xl mx-4 my-2 text-white" />
+          </button>
+          <button onClick={() => setSwipe(0)}>
+            <HiX className="text-5xl mx-4 my-2 text-white" />
+          </button>
         </div>
+      )}
+      {isRemoving && (
+        <div className="flex justify-between flex-grow relative pointer-events-auto bg-red-500">
+          <button onClick={() => setSwipe(0)}>
+            <HiX className="text-5xl mx-4 my-2 text-white" />
+          </button>
+          <button type="button" onClick={() => onRemove(id)}>
+            <HiTrash className="text-5xl mx-4 my-2 text-white" />
+          </button>
+        </div>
+      )}
+      {!isChecking && !isRemoving && (
+        <Slider swipe={setSwipe}>
+          <div className="ml-3 flex-grow">
+            <p
+              className={`text-sm font-medium text-gray-900 ${
+                checked ? 'line-through' : ''
+              }`}
+            >
+              {title}
+            </p>
+            <p className="text-sm text-gray-500">note</p>
+          </div>
 
-        <button
-          className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-          type="button"
-          onClick={() => onToggle(id, !checked)}
-        >
-          <Icon className="hover:text-green-500 text-2xl" />
-        </button>
-        <button
-          className="ml-3 opacity-0 group-hover:opacity-100 transition duration-200 ease-in-out"
-          type="button"
-          onClick={() => onRemove(id)}
-        >
-          <HiTrash className="hover:text-red-500 text-2xl" />
-        </button>
-      </Slider>
+          <button
+            className="ml-3 opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
+            type="button"
+            onClick={() => onToggle(id, !checked)}
+          >
+            <Icon className="hover:text-green-500 text-2xl" />
+          </button>
+          <button
+            className="ml-3 opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
+            type="button"
+            onClick={() => onRemove(id)}
+          >
+            <HiTrash className="hover:text-red-500 text-2xl" />
+          </button>
+        </Slider>
+      )}
     </li>
   );
 }
 
-function Slider({ children }: { children: ReactNode[] }) {
+function Slider({
+  swipe,
+  children,
+}: {
+  swipe: (position: number) => void;
+  children: ReactNode[];
+}) {
   const [{ x }, setSpring] = useSpring<{ x: number }>(() => ({
     x: 0,
   }));
   const bind = useDrag(
-    ({ down, movement: [mx] }) => {
+    ({ down, movement: [mx], swipe: [swipeX] }) => {
       setSpring({
         x: down ? mx : 0,
         immediate: down,
       });
+      swipe(swipeX);
     },
-    { axis: 'x', lockDirection: true, delay: 500, useTouch: true }
+    {
+      axis: 'x',
+      lockDirection: true,
+      delay: 500,
+      useTouch: true,
+      swipeDuration: 500,
+      swipeVelocity: 0.2,
+    }
   );
 
   return (
