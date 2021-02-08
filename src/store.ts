@@ -74,7 +74,8 @@ export class Store {
       this.#socket = io(this.#url, {
         transports: ['websocket'],
         query: {
-          node: this.#node,
+          'node-id': this.#node,
+          'db-version': `${DB_VERSION}`,
         },
       });
       this.#clock = new Clock(this.#node);
@@ -436,7 +437,8 @@ export class Store {
         method,
         headers: {
           ...this.#headers,
-          'x-store-node': this.node,
+          'x-node-id': this.node,
+          'x-db-version': `${DB_VERSION}`,
           ...(isPost ? { 'content-type': 'application/json' } : undefined),
         },
         ...(isPost ? { body: JSON.stringify(data) } : undefined),
@@ -490,8 +492,10 @@ interface Schema extends DBSchema {
 
 type DB = IDBPDatabase<Schema>;
 
+const DB_VERSION = 1;
+
 function createDB(name: string) {
-  return openDB<Schema>(name, 1, {
+  return openDB<Schema>(name, DB_VERSION, {
     upgrade(db) {
       db.createObjectStore('meta');
 
