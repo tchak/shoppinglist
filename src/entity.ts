@@ -78,7 +78,12 @@ export function materializeEntity(
           );
         }
       } else if (isReplaceHasOneOperation(operation)) {
-        if (!operation.data) {
+        if (operation.data) {
+          entity[operation.ref.relationship] = materializeEntity(
+            operation.data.id,
+            operationsById[operation.data.id]
+          );
+        } else {
           entity[operation.ref.relationship] = null;
         }
       }
