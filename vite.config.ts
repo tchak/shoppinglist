@@ -3,6 +3,8 @@ import legacy from '@vitejs/plugin-legacy';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vite';
 
+process.env['VITE_COMMIT_REF'] = process.env['COMMIT_REF'] ?? '';
+
 export default defineConfig({
   plugins: [
     reactRefresh({

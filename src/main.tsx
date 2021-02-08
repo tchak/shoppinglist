@@ -8,6 +8,7 @@ import { Integrations } from '@sentry/tracing';
 Sentry.init({
   enabled: !!import.meta.env['VITE_SENTRY_DSN'],
   dsn: import.meta.env['VITE_SENTRY_DSN'] as string,
+  release: import.meta.env['VITE_COMMIT_REF'] as string,
   integrations: [new Integrations.BrowserTracing()],
   tracesSampleRate: 1.0,
 });
