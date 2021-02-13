@@ -10,9 +10,11 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 
 const store = new Store({
-  name: 'shoppinglist',
+  name: import.meta.env.VITE_DB_NAME as string,
   url: import.meta.env.VITE_API_URL as string,
+  token: import.meta.env.VITE_API_TOKEN as string,
 });
+
 const LazyLanding = lazy(() => import('./components/Landing'));
 const LazyList = lazy(() => import('./components/List'));
 const LazyAbout = lazy(() => import('./components/About'));

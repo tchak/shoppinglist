@@ -22,6 +22,7 @@ export interface StoreSettings {
   url?: string;
   endpoint?: string;
   headers?: Record<string, string>;
+  token?: string;
 }
 
 type EventCallback = (operation: Operation) => void;
@@ -31,6 +32,7 @@ export class Store {
   #url: string;
   #endpoint: string;
   #headers?: Record<string, string>;
+  #token?: string;
 
   #operations = new Map<string, Operation[]>();
   #emitter = createNanoEvents();
@@ -45,6 +47,7 @@ export class Store {
     this.#url = settings?.url ?? '/';
     this.#endpoint = settings?.endpoint ?? 'operations';
     this.#headers = settings?.headers;
+    this.#token = settings?.token;
   }
 
   get node() {
@@ -71,16 +74,31 @@ export class Store {
         this.#node = uuid();
         await this.#db.put('meta', this.#node, 'node');
       }
-      this.#socket = io(this.#url, {
-        transports: ['websocket'],
-        query: {
-          'node-id': this.#node,
-          'db-version': `${DB_VERSION}`,
-        },
-      });
+      this.#socket = this.socket(this.#node);
       this.#clock = new Clock(this.#node);
     }
     return this.#db;
+  }
+
+  private socket(node: string) {
+    const socket = io(this.#url, {
+      auth: {
+        token: this.#token,
+      },
+      transports: ['websocket'],
+      query: {
+        'client-id': node,
+        'client-version': `${DB_VERSION}`,
+      },
+    });
+
+    socket.on('connect', () => {
+      socket.on('atomic:operations', (operations: Operation[]) => {
+        this.push(operations);
+      });
+    });
+
+    return socket;
   }
 
   async find<T = Entity>(
@@ -287,25 +305,25 @@ export class Store {
     optionsOrCallback?: { include?: string[] } | (() => void),
     maybeCallback?: () => void
   ): () => void {
-    const options =
-      typeof optionsOrCallback == 'function' ? undefined : optionsOrCallback;
-    const callback = maybeCallback ? maybeCallback : optionsOrCallback;
+    const socket = this.#socket;
 
-    const _callback = async (operations: Operation[]) => {
-      await this.push(operations);
-      (callback as () => void)();
-    };
+    if (socket) {
+      const options =
+        typeof optionsOrCallback == 'function' ? undefined : optionsOrCallback;
+      const callback = (maybeCallback
+        ? maybeCallback
+        : optionsOrCallback) as () => void;
 
-    if (this.#socket) {
-      this.#socket.emit('subscribe', { type, id, ...options });
-      this.#socket.on('operations', _callback);
+      const off = this.#emitter.on(`change:${type}:${id}`, callback);
+      socket.volatile.emit('subscribe', { type, id, ...options });
+
+      return () => {
+        off();
+        socket.volatile.emit('unsubscribe', { type, id, ...options });
+      };
     }
-    return () => {
-      if (this.#socket) {
-        this.#socket.emit('unsubscribe', { type, id, ...options });
-        this.#socket.off('operations', _callback);
-      }
-    };
+
+    return () => {};
   }
 
   private meta() {
@@ -437,8 +455,11 @@ export class Store {
         method,
         headers: {
           ...this.#headers,
-          'x-node-id': this.node,
-          'x-db-version': `${DB_VERSION}`,
+          'x-client-id': this.node,
+          'x-client-version': `${DB_VERSION}`,
+          ...(this.#token
+            ? { authorization: `Bearer ${this.#token}` }
+            : undefined),
           ...(isPost ? { 'content-type': 'application/json' } : undefined),
         },
         ...(isPost ? { body: JSON.stringify(data) } : undefined),
@@ -492,21 +513,29 @@ interface Schema extends DBSchema {
 
 type DB = IDBPDatabase<Schema>;
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function createDB(name: string) {
   return openDB<Schema>(name, DB_VERSION, {
-    upgrade(db) {
-      db.createObjectStore('meta');
+    upgrade(db, oldVersion, newVersion) {
+      if (oldVersion == 1 && newVersion == 2) {
+        db.deleteObjectStore('operations');
+      }
 
-      const store = db.createObjectStore('operations', {
-        keyPath: 'meta.id',
-      });
-      store.createIndex('op', 'op');
-      store.createIndex('type', 'ref.type');
-      store.createIndex('id', 'ref.id');
-      store.createIndex('sync', 'meta.sync');
-      store.createIndex('timestamp', 'meta.timestamp');
+      if (oldVersion == 0) {
+        db.createObjectStore('meta');
+      }
+
+      if (oldVersion == 0 || oldVersion == 1) {
+        const store = db.createObjectStore('operations', {
+          keyPath: 'meta.id',
+        });
+        store.createIndex('op', 'op');
+        store.createIndex('type', 'ref.type');
+        store.createIndex('id', 'ref.id');
+        store.createIndex('sync', 'meta.sync');
+        store.createIndex('timestamp', 'meta.timestamp');
+      }
     },
   });
 }
