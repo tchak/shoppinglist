@@ -39,7 +39,7 @@ export class Store {
 
   #node?: string;
   #clock?: Clock;
-  #db?: DB;
+  #db?: Promise<DB>;
   #socket?: Socket;
 
   constructor(settings?: StoreSettings) {
@@ -57,6 +57,13 @@ export class Store {
     return this.#node;
   }
 
+  get socket() {
+    if (!this.#socket) {
+      throw new Error('Store failed to initialize');
+    }
+    return this.#socket;
+  }
+
   get clock() {
     if (!this.#clock) {
       throw new Error('Store failed to initialize');
@@ -64,41 +71,60 @@ export class Store {
     return this.#clock;
   }
 
-  async db() {
+  db(): Promise<DB> {
     if (!this.#db) {
-      this.#db = await createDB(this.#name);
-      const node = await this.#db.get('meta', 'node');
-      if (node) {
-        this.#node = node;
-      } else {
-        this.#node = uuid();
-        await this.#db.put('meta', this.#node, 'node');
-      }
-      this.#socket = this.socket(this.#node);
-      this.#clock = new Clock(this.#node);
+      this.#db = this.ready();
     }
     return this.#db;
   }
 
-  private socket(node: string) {
+  private async ready() {
+    const db = await this.dbReady();
+    await this.socketReady();
+    await this.clockReady();
+    return db;
+  }
+
+  private async dbReady(): Promise<DB> {
+    const db = await createDB(this.#name);
+    const node = await db.get('meta', 'node');
+    if (node) {
+      this.#node = node;
+    } else {
+      this.#node = uuid();
+      await db.put('meta', this.#node, 'node');
+    }
+    return db;
+  }
+
+  private async socketReady(): Promise<void> {
     const socket = io(this.#url, {
       auth: {
         token: this.#token,
       },
       transports: ['websocket'],
       query: {
-        'client-id': node,
+        'client-id': this.node,
         'client-version': `${DB_VERSION}`,
       },
     });
-
-    socket.on('connect', () => {
-      socket.on('atomic:operations', (operations: Operation[]) => {
-        this.push(operations);
-      });
+    socket.on('atomic:operations', (operations: Operation[]) => {
+      console.debug('recieved operations:', operations);
+      this.push(operations);
     });
 
-    return socket;
+    this.#socket = await new Promise((resolve) => {
+      socket.once('connect', () => {
+        resolve(socket);
+      });
+      socket.once('connect_error', () => {
+        resolve(undefined);
+      });
+    });
+  }
+
+  private async clockReady(): Promise<void> {
+    this.#clock = new Clock(this.node);
   }
 
   async find<T = Entity>(
@@ -125,7 +151,7 @@ export class Store {
   }
 
   async findOne<T = Entity>(
-    { type, id }: Identifier,
+    { id }: Identifier,
     options?: { fetch?: boolean; include?: string[] }
   ): Promise<T | null> {
     if (options?.fetch) {
@@ -135,7 +161,7 @@ export class Store {
   }
 
   async findOneOrFail<T = Entity>(
-    { type, id }: Identifier,
+    { id }: Identifier,
     options?: { fetch?: boolean; include?: string[] }
   ) {
     if (options?.fetch) {
@@ -305,25 +331,27 @@ export class Store {
     optionsOrCallback?: { include?: string[] } | (() => void),
     maybeCallback?: () => void
   ): () => void {
-    const socket = this.#socket;
+    const options =
+      typeof optionsOrCallback == 'function' ? undefined : optionsOrCallback;
+    const callback = (maybeCallback
+      ? maybeCallback
+      : optionsOrCallback) as () => void;
 
-    if (socket) {
-      const options =
-        typeof optionsOrCallback == 'function' ? undefined : optionsOrCallback;
-      const callback = (maybeCallback
-        ? maybeCallback
-        : optionsOrCallback) as () => void;
+    const off = this.on(type, id, callback);
+    this.db().then(() => {
+      if (this.socket.connected) {
+        this.socket.emit('subscribe', { type, id, ...options });
+      }
+    });
 
-      const off = this.#emitter.on(`change:${type}:${id}`, callback);
-      socket.volatile.emit('subscribe', { type, id, ...options });
-
-      return () => {
-        off();
-        socket.volatile.emit('unsubscribe', { type, id, ...options });
-      };
-    }
-
-    return () => {};
+    return () => {
+      off();
+      this.db().then(() => {
+        if (this.socket.connected) {
+          this.socket.emit('unsubscribe', { type, id, ...options });
+        }
+      });
+    };
   }
 
   private meta() {
@@ -361,7 +389,6 @@ export class Store {
     id: ID,
     include: string[] = []
   ): Promise<Operation[]> {
-    console.time(`operationsFor: ${id}`);
     let operations = this.#operations.get(id);
     if (!operations) {
       const db = await this.db();
@@ -395,7 +422,6 @@ export class Store {
         operations.push(...(await this.operationsFor(id)));
       }
     }
-    console.timeEnd(`operationsFor: ${id}`);
     return operations;
   }
 
@@ -422,7 +448,12 @@ export class Store {
     const operations = Array.isArray(operation) ? operation : [operation];
     operations.sort(sortByTimestamp);
     for (const operation of operations) {
-      console.log('apply operation:', operation);
+      console.debug(
+        sync == 'pending'
+          ? 'apply local operation:'
+          : 'apply operation from remote:',
+        operation
+      );
       await tx.store.add({
         ...operation,
         meta: {

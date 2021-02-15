@@ -63,7 +63,7 @@ export function useEntityQuery<T = Entity>(
         queryClient.invalidateQueries([type, id]);
       });
     }
-  });
+  }, [type, id, options?.subscribe, options?.include?.join(':')]);
   return useQuery<T>([type, id, options], () =>
     store.findOneOrFail<T>({ type, id }, options)
   );
