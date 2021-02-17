@@ -45,7 +45,6 @@ export function AddItemCombobox({
           className="shadow-sm focus:ring-green-500 focus:border-green-500 flex-grow sm:text-sm border-gray-300 rounded-md"
           value={term}
           onChange={({ currentTarget: { value } }) => setTerm(value)}
-          onBlur={() => setTerm('')}
         />
         {items && (
           <ComboboxPopover className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
