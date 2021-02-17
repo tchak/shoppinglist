@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, FormEvent } from 'react';
 import {
   Combobox,
   ComboboxInput,
@@ -8,8 +8,9 @@ import {
 } from '@reach/combobox';
 import { matchSorter } from 'match-sorter';
 import { useThrottledCallback } from 'use-debounce';
+import { HiPlus } from 'react-icons/hi';
 
-import food from '../data/food';
+import food, { titleize } from '../data/food';
 
 export function AddItemCombobox({
   onSelect,
@@ -18,21 +19,33 @@ export function AddItemCombobox({
 }) {
   const [term, setTerm] = useState('');
   const items = useFoodMatch(term);
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (term.length >= 2) {
+      onSelect(titleize(term));
+      setTerm('');
+    }
+  };
+
   return (
-    <div className="mt-2">
+    <form className="mt-2" onSubmit={onSubmit}>
       <Combobox
+        className="flex"
         aria-labelledby="Add Item"
         onSelect={(value) => {
           onSelect(value);
           setTerm('');
         }}
       >
+        <HiPlus className="text-4xl text-gray-400" />
         <ComboboxInput
           type="text"
           placeholder="Add Item"
-          className="shadow-sm focus:ring-green-500 focus:border-green-500 block w-full sm:text-sm border-gray-300 rounded-md"
+          className="shadow-sm focus:ring-green-500 focus:border-green-500 flex-grow sm:text-sm border-gray-300 rounded-md"
           value={term}
           onChange={({ currentTarget: { value } }) => setTerm(value)}
+          onBlur={() => setTerm('')}
         />
         {items && (
           <ComboboxPopover className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
@@ -55,7 +68,7 @@ export function AddItemCombobox({
           </ComboboxPopover>
         )}
       </Combobox>
-    </div>
+    </form>
   );
 }
 

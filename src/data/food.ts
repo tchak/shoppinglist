@@ -7,7 +7,7 @@ const food: string[] = [
   ...new Set([...fruits, ...vegetables, ...condiments, ...misc].map(titleize)),
 ];
 
-function titleize(input: string) {
+export function titleize(input: string) {
   return input.toLowerCase().replace(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
 }
 
