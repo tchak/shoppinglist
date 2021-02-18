@@ -12,6 +12,7 @@
     "@reach/disclosure": "^0.13.0",
     "@sentry/react": "^6.0.4",
     "@sentry/tracing": "^6.1.0",
+    "broadcast-channel": "^3.4.1",
     "history": "^5.0.0",
     "idb": "^6.0.0",
     "is-hotkey": "^0.2.0",

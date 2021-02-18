@@ -2,6 +2,11 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { v4 as uuid } from 'uuid';
 import { createNanoEvents } from 'nanoevents';
 import { io, Socket } from 'socket.io-client';
+import {
+  BroadcastChannel,
+  createLeaderElection,
+  LeaderElector,
+} from 'broadcast-channel';
 
 import { Clock, cmp, unpack } from './hlc';
 import {
@@ -27,6 +32,10 @@ export interface StoreSettings {
 
 type EventCallback = (operation: Operation) => void;
 
+interface BroadcastChannelMessage {
+  'atomic:operations': Operation[];
+}
+
 export class Store {
   #name: string;
   #url: string;
@@ -37,12 +46,18 @@ export class Store {
   #operations = new Map<string, Operation[]>();
   #emitter = createNanoEvents();
 
+  #channel = new BroadcastChannel<BroadcastChannelMessage>('store', {
+    webWorkerSupport: false,
+  });
+  #elector: LeaderElector;
+
   #node?: string;
   #clock?: Clock;
   #db?: Promise<DB>;
   #socket?: Socket;
 
   constructor(settings?: StoreSettings) {
+    this.#elector = createLeaderElection(this.#channel);
     this.#name = settings?.name ?? 'store';
     this.#url = settings?.url ?? '/';
     this.#endpoint = settings?.endpoint ?? 'operations';
@@ -108,10 +123,6 @@ export class Store {
         'client-version': `${DB_VERSION}`,
       },
     });
-    socket.on('atomic:operations', (operations: Operation[]) => {
-      console.debug('recieved operations:', operations);
-      this.push(operations);
-    });
 
     this.#socket = await new Promise((resolve) => {
       socket.once('connect', () => {
@@ -121,10 +132,24 @@ export class Store {
         resolve(undefined);
       });
     });
+
+    this.channelReady();
   }
 
   private async clockReady(): Promise<void> {
     this.#clock = new Clock(this.node);
+  }
+
+  private channelReady() {
+    this.#elector.awaitLeadership().then(() => {
+      this.socket.on('atomic:operations', (operations: Operation[]) => {
+        console.debug('recieved operations:', operations);
+        this.push(operations);
+      });
+    });
+    this.#channel.addEventListener('message', (message) => {
+      this.invalidate(message['atomic:operations']);
+    });
   }
 
   async find<T = Entity>(
@@ -463,6 +488,13 @@ export class Store {
       });
     }
     await tx.done;
+    this.invalidate(operations);
+    this.#channel.postMessage({ 'atomic:operations': operations });
+
+    requestAnimationFrame(() => this.sync());
+  }
+
+  invalidate(operations: Operation[]) {
     for (const operation of operations) {
       this.#operations.delete(operation.ref.id);
       this.#emitter.emit(`change:${operation.ref.type}`, operation);
@@ -471,8 +503,6 @@ export class Store {
         operation
       );
     }
-
-    requestAnimationFrame(() => this.sync());
   }
 
   private async request(method: 'get' | 'post' = 'get', data?: unknown) {
