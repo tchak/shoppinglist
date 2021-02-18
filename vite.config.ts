@@ -19,6 +19,18 @@ export default defineConfig({
         short_name: 'Shoppinglist',
         background_color: 'rgb(5,150,105)',
         theme_color: 'rgb(229,231,235)',
+        icons: [
+          {
+            src: '/android-chrome-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/android-chrome-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+        ],
       },
     }),
   ],
