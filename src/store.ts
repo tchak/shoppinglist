@@ -32,8 +32,181 @@ export interface StoreSettings {
 
 type EventCallback = (operation: Operation) => void;
 
-interface BroadcastChannelMessage {
-  'atomic:operations': Operation[];
+interface OperationsMessage {
+  type: 'invalidate';
+  payload: {
+    operations: Operation[];
+  };
+}
+
+interface SubscribeMessage {
+  type: 'subscribe';
+  payload: {
+    type: string;
+    id: ID;
+    options?: { include?: string[] };
+  };
+}
+
+interface UnsubscribeMessage {
+  type: 'unsubscribe';
+  payload: {
+    type: string;
+    id: ID;
+    options?: { include?: string[] };
+  };
+}
+
+type BroadcastChannelMessage =
+  | OperationsMessage
+  | SubscribeMessage
+  | UnsubscribeMessage;
+
+class SocketChannel {
+  #emitter = createNanoEvents();
+  #channel = new BroadcastChannel<BroadcastChannelMessage>('store', {
+    webWorkerSupport: false,
+  });
+  #elector: LeaderElector;
+  #subscriptions = new Map<
+    string,
+    { type: string; id: ID; options?: { include?: string[] } }
+  >();
+  #url: string;
+  #token: string;
+  #socket?: Socket;
+
+  constructor(url: string, token: string) {
+    this.#elector = createLeaderElection(this.#channel);
+    this.#url = url;
+    this.#token = token;
+  }
+
+  init(node: string) {
+    this.#elector.awaitLeadership().then(() => {
+      this.connect(node);
+    });
+    this.#channel.addEventListener('message', (message) => {
+      switch (message.type) {
+        case 'invalidate':
+          this.#emitter.emit('invalidate', message.payload.operations);
+          break;
+        case 'subscribe':
+          this.onSubscribe(
+            message.payload.type,
+            message.payload.id,
+            message.payload.options
+          );
+          break;
+        case 'unsubscribe':
+          this.onUnsubscribe(
+            message.payload.type,
+            message.payload.id,
+            message.payload.options
+          );
+      }
+    });
+  }
+
+  private connect(node: string) {
+    const socket = io(this.#url, {
+      auth: {
+        token: this.#token,
+      },
+      transports: ['websocket'],
+      query: {
+        'client-id': node,
+        'client-version': `${DB_VERSION}`,
+      },
+    });
+
+    socket.on('atomic:operations', (operations: Operation[]) => {
+      this.#emitter.emit('push', operations);
+      for (const [, { type, id }] of this.#subscriptions) {
+        this.#emitter.emit('invalidate', [
+          {
+            ref: {
+              type,
+              id,
+            },
+          },
+        ]);
+      }
+    });
+
+    socket.on('connect', () => {
+      for (const [, { type, id, options }] of this.#subscriptions) {
+        socket.emit('subscribe', { type, id, ...options });
+      }
+    });
+
+    this.#socket = socket;
+  }
+
+  on(
+    event: 'invalidate' | 'push',
+    callback: (operations: Operation[]) => void
+  ) {
+    return this.#emitter.on(event, callback);
+  }
+
+  invalidate(operations: Operation[]) {
+    this.#channel.postMessage({
+      type: 'invalidate',
+      payload: {
+        operations,
+      },
+    });
+  }
+
+  subscribe(type: string, id: ID, options?: { include?: string[] }) {
+    this.#channel.postMessage({
+      type: 'subscribe',
+      payload: {
+        type,
+        id,
+        options,
+      },
+    });
+    this.onSubscribe(type, id, options);
+    return () => this.unsubscribe(type, id, options);
+  }
+
+  unsubscribe(type: string, id: ID, options?: { include?: string[] }) {
+    this.#channel.postMessage({
+      type: 'subscribe',
+      payload: {
+        type,
+        id,
+        options,
+      },
+    });
+    this.onUnsubscribe(type, id, options);
+  }
+
+  private onSubscribe(type: string, id: ID, options?: { include?: string[] }) {
+    const key = [type, id, ...(options?.include ?? [])].join(':');
+    this.#subscriptions.set(key, {
+      type,
+      id,
+      options,
+    });
+    if (this.#socket?.connected) {
+      this.#socket.emit('subscribe', { type, id, ...options });
+    }
+  }
+
+  private onUnsubscribe(
+    type: string,
+    id: ID,
+    options?: { include?: string[] }
+  ) {
+    const key = [type, id, ...(options?.include ?? [])].join(':');
+    this.#subscriptions.delete(key);
+    if (this.#socket?.connected) {
+      this.#socket.emit('unsubscribe', { type, id, ...options });
+    }
+  }
 }
 
 export class Store {
@@ -46,23 +219,18 @@ export class Store {
   #operations = new Map<string, Operation[]>();
   #emitter = createNanoEvents();
 
-  #channel = new BroadcastChannel<BroadcastChannelMessage>('store', {
-    webWorkerSupport: false,
-  });
-  #elector: LeaderElector;
-
   #node?: string;
   #clock?: Clock;
   #db?: Promise<DB>;
-  #socket?: Socket;
+  #channel: SocketChannel;
 
   constructor(settings?: StoreSettings) {
-    this.#elector = createLeaderElection(this.#channel);
     this.#name = settings?.name ?? 'store';
     this.#url = settings?.url ?? '/';
     this.#endpoint = settings?.endpoint ?? 'operations';
     this.#headers = settings?.headers;
     this.#token = settings?.token;
+    this.#channel = new SocketChannel(this.#url, this.#token ?? '');
   }
 
   get node() {
@@ -72,18 +240,18 @@ export class Store {
     return this.#node;
   }
 
-  get socket() {
-    if (!this.#socket) {
-      throw new Error('Store failed to initialize');
-    }
-    return this.#socket;
-  }
-
   get clock() {
     if (!this.#clock) {
       throw new Error('Store failed to initialize');
     }
     return this.#clock;
+  }
+
+  get channel() {
+    if (!this.#channel) {
+      throw new Error('Store failed to initialize');
+    }
+    return this.#channel;
   }
 
   db(): Promise<DB> {
@@ -94,13 +262,13 @@ export class Store {
   }
 
   private async ready() {
-    const db = await this.dbReady();
-    await this.socketReady();
-    await this.clockReady();
+    const db = await this.initDB();
+    this.#clock = new Clock(this.node);
+    this.initChannel();
     return db;
   }
 
-  private async dbReady(): Promise<DB> {
+  private async initDB(): Promise<DB> {
     const db = await createDB(this.#name);
     const node = await db.get('meta', 'node');
     if (node) {
@@ -112,44 +280,10 @@ export class Store {
     return db;
   }
 
-  private async socketReady(): Promise<void> {
-    const socket = io(this.#url, {
-      auth: {
-        token: this.#token,
-      },
-      transports: ['websocket'],
-      query: {
-        'client-id': this.node,
-        'client-version': `${DB_VERSION}`,
-      },
-    });
-
-    this.#socket = await new Promise((resolve) => {
-      socket.once('connect', () => {
-        resolve(socket);
-      });
-      socket.once('connect_error', () => {
-        resolve(undefined);
-      });
-    });
-
-    this.channelReady();
-  }
-
-  private async clockReady(): Promise<void> {
-    this.#clock = new Clock(this.node);
-  }
-
-  private channelReady() {
-    this.#elector.awaitLeadership().then(() => {
-      this.socket.on('atomic:operations', (operations: Operation[]) => {
-        console.debug('recieved operations:', operations);
-        this.push(operations);
-      });
-    });
-    this.#channel.addEventListener('message', (message) => {
-      this.invalidate(message['atomic:operations']);
-    });
+  private initChannel() {
+    this.#channel.init(this.node);
+    this.#channel.on('push', (operations) => this.push(operations));
+    this.#channel.on('invalidate', (operations) => this.invalidate(operations));
   }
 
   async find<T = Entity>(
@@ -362,20 +496,15 @@ export class Store {
       ? maybeCallback
       : optionsOrCallback) as () => void;
 
-    const off = this.on(type, id, callback);
-    this.db().then(() => {
-      if (this.socket.connected) {
-        this.socket.emit('subscribe', { type, id, ...options });
-      }
-    });
+    const off = [
+      this.on(type, id, callback),
+      this.channel.subscribe(type, id, options),
+    ];
 
     return () => {
-      off();
-      this.db().then(() => {
-        if (this.socket.connected) {
-          this.socket.emit('unsubscribe', { type, id, ...options });
-        }
-      });
+      for (const cb of off) {
+        cb();
+      }
     };
   }
 
@@ -489,12 +618,12 @@ export class Store {
     }
     await tx.done;
     this.invalidate(operations);
-    this.#channel.postMessage({ 'atomic:operations': operations });
+    this.channel.invalidate(operations);
 
     requestAnimationFrame(() => this.sync());
   }
 
-  invalidate(operations: Operation[]) {
+  private invalidate(operations: Operation[]) {
     for (const operation of operations) {
       this.#operations.delete(operation.ref.id);
       this.#emitter.emit(`change:${operation.ref.type}`, operation);
