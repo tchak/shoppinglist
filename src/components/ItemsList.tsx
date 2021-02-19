@@ -68,11 +68,11 @@ function ListItem({
       {isChecking && (
         <div className="flex justify-between flex-grow relative pointer-events-auto bg-blue-500">
           <button type="button" onClick={() => onToggle(id, !checked)}>
-            <CheckedIcon className="text-5xl mx-4 my-2 text-white" />
+            <CheckedIcon className="text-5xl px-4 py-2 text-white" />
             <span className="sr-only">Check</span>
           </button>
           <button onClick={() => setSwipe(0)}>
-            <HiX className="text-5xl mx-4 my-2 text-white" />
+            <HiX className="text-5xl px-4 py-2 text-white" />
             <span className="sr-only">Cancel</span>
           </button>
         </div>
