@@ -6,11 +6,14 @@ import {
   ComboboxList,
   ComboboxOption,
 } from '@reach/combobox';
-import { matchSorter } from 'match-sorter';
 import { useThrottledCallback } from 'use-debounce';
 import { HiPlus } from 'react-icons/hi';
 
-import food, { titleize } from '../data/food';
+import food from '../data/food';
+
+function titleize(input: string) {
+  return input.toLowerCase().replace(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
+}
 
 export function AddItemCombobox({
   onSelect,
@@ -75,7 +78,11 @@ function useFoodMatch(term: string) {
   const [items, setItems] = useState<null | string[]>(null);
   const match = useThrottledCallback(
     (term: string) =>
-      setItems(term.trim() === '' ? null : matchSorter(food, term)),
+      setItems(
+        term.trim() === ''
+          ? null
+          : food.search(term).map((result) => result.item)
+      ),
     100
   );
   requestAnimationFrame(() => match.callback(term));

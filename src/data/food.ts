@@ -1,14 +1,9 @@
-import fruits from './fruits.json';
-import vegetables from './vegetables.json';
-import condiments from './condiments.json';
-import misc from './misc.json';
+import Fuse from 'fuse.js';
 
-const food: string[] = [
-  ...new Set([...fruits, ...vegetables, ...condiments, ...misc].map(titleize)),
-];
+import foodIndex from './food-index.json';
+import foodList from './food.json';
 
-export function titleize(input: string) {
-  return input.toLowerCase().replace(/(?:^|\s|-)\S/g, (x) => x.toUpperCase());
-}
+const index = Fuse.parseIndex(foodIndex);
+const food = new Fuse<string>(foodList as string[], {}, index);
 
 export default food;
