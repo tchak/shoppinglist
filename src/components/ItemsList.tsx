@@ -8,11 +8,11 @@ import {
 import { animated, useSpring } from 'react-spring';
 import { useDrag } from 'react-use-gesture';
 
-import { ID, Item } from '../hooks';
+import { Item } from '../models';
 
 interface ListItemProps {
-  onToggle: (id: ID, checked: boolean) => void;
-  onRemove: (id: ID) => void;
+  onToggle: (id: string, checked: boolean) => void;
+  onRemove: (id: string) => void;
 }
 
 export function ActiveItemsList({
@@ -24,7 +24,7 @@ export function ActiveItemsList({
   return (
     <ul className="divide-y divide-gray-200">
       {items.map((item) => (
-        <ListItem key={item.id} {...item} {...props} />
+        <ListItem key={item.id} item={item} {...props} />
       ))}
     </ul>
   );
@@ -44,7 +44,7 @@ export function CheckedOffItemsList({
       <DisclosureButton>{items.length} checked off</DisclosureButton>
       <DisclosurePanel as="ul" className="divide-y divide-gray-200">
         {items.map((item) => (
-          <ListItem key={item.id} {...item} {...props} />
+          <ListItem key={item.id} item={item} {...props} />
         ))}
       </DisclosurePanel>
     </Disclosure>
@@ -52,12 +52,10 @@ export function CheckedOffItemsList({
 }
 
 function ListItem({
-  id,
-  title,
-  checked,
+  item: { id, title, checked },
   onToggle,
   onRemove,
-}: Item & ListItemProps) {
+}: { item: Item } & ListItemProps) {
   const [swipe, setSwipe] = useState(0);
   const CheckedIcon = checked ? HiPlus : HiCheck;
   const isChecking = swipe === 1;
