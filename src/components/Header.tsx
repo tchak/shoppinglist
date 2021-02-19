@@ -1,12 +1,26 @@
 import React from 'react';
 import { NavLink, useMatch } from 'react-router-dom';
-import { HiClipboardCheck } from 'react-icons/hi';
+import { HiClipboardCheck, HiClipboardCopy } from 'react-icons/hi';
+import useClipboard from 'react-use-clipboard';
 
 import { useEntityMutation } from '../hooks';
 
 export function Header() {
+  const url = location.toString();
+  const [, setCopied] = useClipboard(url);
   const isLanding = useMatch('/');
   const mutation = useEntityMutation('list');
+
+  const onShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'Share Shoppinglist',
+        url,
+      });
+    } else {
+      setCopied();
+    }
+  };
 
   return (
     <div className="flex items-center justify-between flex-wrap sm:flex-nowrap">
@@ -23,7 +37,11 @@ export function Header() {
           >
             Create new list
           </button>
-        ) : null}
+        ) : (
+          <button type="button" onClick={onShare}>
+            <HiClipboardCopy className="text-gray-900 text-4xl" />
+          </button>
+        )}
       </div>
     </div>
   );
