@@ -5,7 +5,11 @@ import {
   QueryObserverResult,
   QueryClient,
 } from 'react-query';
-import { RecordTransformOrOperations, RecordOperation } from '@orbit/records';
+import {
+  RecordTransformOrOperations,
+  RecordOperation,
+  RecordIdentity,
+} from '@orbit/records';
 
 import { Model, ModelClass, Store } from './store';
 
@@ -34,9 +38,7 @@ export function useRecordsQuery<T extends Model>(
   const type = modelClass.modelName;
   const include = options?.include ?? [];
 
-  return useQuery(['records', type, include], () =>
-    store.find(modelClass, { include })
-  );
+  return useQuery(['records', type], () => store.find(modelClass, { include }));
 }
 
 export interface UseRecordsQueryOptions {
@@ -62,7 +64,7 @@ export function useRecordQuery<T extends Model>(
     }
   }, [type, id, subscribe, include.join(',')]);
 
-  return useQuery<T>(['record', type, id, include], () =>
+  return useQuery<T>(['record', type, id], () =>
     store.findOneOrFail(modelClass, id, { fetch, include })
   );
 }
@@ -74,33 +76,91 @@ export function useRecordMutation() {
   );
 }
 
-export function invalidateQueries(store: Store, queryClient: QueryClient) {
-  function invalidateInverseQueries(type: string) {
-    store.schema.eachRelationship(type, (_, { type, inverse }) => {
-      if (inverse) {
-        queryClient.invalidateQueries(['records', type, inverse]);
-        queryClient.invalidateQueries(['record', type]);
-      }
-    });
-  }
+interface Invalidate {
+  records: Set<string>;
+  record: Map<string, string>;
+}
 
+export function invalidateQueries(store: Store, queryClient: QueryClient) {
   store.on('patch', (operation: RecordOperation) => {
     const { type, id } = operation.record;
+    const invalidate: Invalidate = {
+      records: new Set(),
+      record: new Map(),
+    };
+
     if (operation.op == 'addRecord') {
-      queryClient.invalidateQueries(['records', type]);
-      invalidateInverseQueries(type);
+      invalidate.records.add(type);
+      invalidateInverseQueries(store, operation.record, invalidate);
     } else if (operation.op == 'removeRecord') {
-      queryClient.invalidateQueries(['records', type]);
-      queryClient.invalidateQueries(['record', type, id]);
-      invalidateInverseQueries(type);
+      invalidate.records.add(type);
+      invalidate.record.set(type, id);
+      invalidateInverseQueries(store, operation.record, invalidate);
     } else {
-      queryClient.invalidateQueries(['record', type, id]);
+      invalidate.record.set(type, id);
       if (
         operation.op == 'updateRecord' ||
         operation.op == 'replaceAttribute'
       ) {
-        invalidateInverseQueries(type);
+        invalidateInverseQueries(store, operation.record, invalidate);
+      }
+    }
+
+    for (const type of invalidate.records) {
+      queryClient.invalidateQueries(['records', type]);
+    }
+    for (const [type, id] of invalidate.record) {
+      queryClient.invalidateQueries(['record', type, id]);
+    }
+  });
+}
+
+function invalidateInverseQueries(
+  store: Store,
+  record: RecordIdentity,
+  invalidate: Invalidate
+) {
+  store.schema.eachRelationship(record.type, (_, { type, inverse }) => {
+    if (type && inverse) {
+      const types = Array.isArray(type) ? type : [type];
+      for (const type of types) {
+        invalidate.records.add(type);
+
+        for (const { id } of findInverseRecords(store, type, inverse, record)) {
+          invalidate.record.set(type, id);
+        }
       }
     }
   });
+}
+
+function findInverseRecords(
+  store: Store,
+  type: string,
+  relation: string,
+  record: RecordIdentity
+) {
+  const relationship = store.schema.getRelationship(type, relation);
+  switch (relationship?.kind) {
+    case 'hasMany':
+      return store.cache.query<RecordIdentity[]>((q) =>
+        q.findRecords(type).filter({
+          kind: 'relatedRecords',
+          op: 'some',
+          relation,
+          records: [record],
+        })
+      );
+    case 'hasOne':
+      return store.cache.query<RecordIdentity[]>((q) =>
+        q.findRecords(type).filter({
+          kind: 'relatedRecord',
+          op: 'equal',
+          relation,
+          record,
+        })
+      );
+    default:
+      return [];
+  }
 }

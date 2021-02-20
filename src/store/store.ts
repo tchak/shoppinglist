@@ -56,6 +56,10 @@ export class Store {
     return this.#source.schema;
   }
 
+  get cache() {
+    return this.#source.cache;
+  }
+
   on(event: 'patch', callback: (operation: RecordOperation) => void) {
     return this.#source.cache.on(event, callback);
   }
