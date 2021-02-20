@@ -14,6 +14,7 @@
     "@orbit/memory": "0.17.0-beta.12",
     "@reach/alert": "^0.13.0",
     "@reach/combobox": "^0.13.0",
+    "@reach/dialog": "^0.13.0",
     "@reach/disclosure": "^0.13.0",
     "@sentry/react": "^6.2.0",
     "@sentry/tracing": "^6.2.0",

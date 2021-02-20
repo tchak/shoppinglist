@@ -1,14 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { v4 as uuid } from 'uuid';
 
-import { List } from '../models';
+import { List, Item } from '../models';
 import { useRecordQuery, useRecordMutation } from '../hooks';
 import { Loader } from './Loader';
 
 import { ListTitle } from './ListTitle';
 import { AddItemCombobox } from './AddItemCombobox';
 import { ActiveItemsList, CheckedOffItemsList } from './ItemsList';
+import { ItemDetailDialog } from './ItemDetailDialog';
 
 function sortBy<T>(array: T[], key: keyof T) {
   return [...array].sort((a, b) => (b[key] as any) - (a[key] as any));
@@ -22,6 +23,7 @@ export function ListComponent() {
     subscribe: true,
   });
   const mutation = useRecordMutation();
+  const [openItem, setOpenItem] = useState<Item | undefined>();
 
   if (isLoading) {
     return <Loader />;
@@ -42,6 +44,10 @@ export function ListComponent() {
       t.removeRecord(item),
     ]);
   };
+  const onOpen = (id: string) => {
+    setOpenItem(list.items.find((item) => item.id == id));
+  };
+  const onClose = () => setOpenItem(undefined);
 
   const title = list.title;
   const sortedItems = sortBy(list.items, 'createdDate');
@@ -69,13 +75,21 @@ export function ListComponent() {
         }}
       />
 
-      <ActiveItemsList items={items} onToggle={onToggle} onRemove={onRemove} />
+      <ActiveItemsList
+        items={items}
+        onToggle={onToggle}
+        onRemove={onRemove}
+        onOpen={onOpen}
+      />
 
       <CheckedOffItemsList
         items={checkedItems}
         onToggle={onToggle}
         onRemove={onRemove}
+        onOpen={onOpen}
       />
+
+      {openItem && <ItemDetailDialog item={openItem} onDismiss={onClose} />}
     </div>
   );
 }

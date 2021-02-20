@@ -13,6 +13,7 @@ import { Item } from '../models';
 interface ListItemProps {
   onToggle: (id: string, checked: boolean) => void;
   onRemove: (id: string) => void;
+  onOpen: (id: string) => void;
 }
 
 export function ActiveItemsList({
@@ -52,9 +53,10 @@ export function CheckedOffItemsList({
 }
 
 function ListItem({
-  item: { id, title, checked },
+  item: { id, title, note, checked },
   onToggle,
   onRemove,
+  onOpen,
 }: { item: Item } & ListItemProps) {
   const [swipe, setSwipe] = useState(0);
   const CheckedIcon = checked ? HiPlus : HiCheck;
@@ -88,8 +90,12 @@ function ListItem({
         </div>
       )}
       {!isChecking && !isRemoving && (
-        <Slider CheckedIcon={CheckedIcon} swipe={setSwipe}>
-          <div className="ml-3 flex-grow">
+        <Slider
+          CheckedIcon={CheckedIcon}
+          onTap={() => onOpen(id)}
+          swipe={setSwipe}
+        >
+          <div role="button" className="ml-3 flex-grow">
             <p
               className={`text-lg text-gray-900 ${
                 checked ? 'line-through' : ''
@@ -97,7 +103,7 @@ function ListItem({
             >
               {title}
             </p>
-            <p className="text-sm text-gray-500"></p>
+            <p className="text-sm text-gray-500">{note}</p>
           </div>
 
           <button
@@ -124,10 +130,12 @@ function ListItem({
 
 function Slider({
   swipe,
+  onTap,
   CheckedIcon,
   children,
 }: {
   swipe: (position: number) => void;
+  onTap?: () => void;
   CheckedIcon: typeof HiPlus | typeof HiCheck;
   children: ReactNode[];
 }) {
@@ -136,7 +144,10 @@ function Slider({
     x: 0,
   }));
   const bind = useDrag(
-    ({ down, movement: [mx], swipe: [swipeX] }) => {
+    ({ down, movement: [mx], swipe: [swipeX], tap }) => {
+      if (tap && onTap) {
+        onTap();
+      }
       setSpring({
         x: down ? mx : 0,
         immediate: down,
@@ -151,6 +162,7 @@ function Slider({
       useTouch: true,
       swipeDuration: 500,
       swipeVelocity: 0.2,
+      filterTaps: true,
     }
   );
 
