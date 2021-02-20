@@ -13,8 +13,8 @@ import { OperationStore } from './operation-store';
 
 export interface StoreSettings {
   schema: RecordSchema;
-  name?: string;
-  url?: string;
+  name: string;
+  host: string;
   endpoint?: string;
   headers?: Record<string, string>;
   token?: string;

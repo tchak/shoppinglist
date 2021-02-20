@@ -14,7 +14,7 @@ import { Footer } from './components/Footer';
 const store = new Store({
   schema,
   name: import.meta.env.VITE_DB_NAME as string,
-  url: import.meta.env.VITE_API_URL as string,
+  host: import.meta.env.VITE_API_URL as string,
   token: import.meta.env.VITE_API_TOKEN as string,
 });
 const queryClient = new QueryClient();

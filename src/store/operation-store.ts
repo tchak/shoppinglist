@@ -21,8 +21,8 @@ import {
 import { materializeRecord, RecordDocument } from './record';
 
 export interface StoreSettings {
-  name?: string;
-  url?: string;
+  name: string;
+  host: string;
   endpoint?: string;
   headers?: Dict<string>;
   token?: string;
@@ -30,7 +30,7 @@ export interface StoreSettings {
 
 export class OperationStore {
   #name: string;
-  #url: string;
+  #host: string;
   #endpoint: string;
   #headers?: Dict<string>;
   #token?: string;
@@ -43,13 +43,13 @@ export class OperationStore {
   #clock?: Clock;
   #db?: Promise<DB>;
 
-  constructor(settings?: StoreSettings) {
-    this.#name = settings?.name ?? 'store';
-    this.#url = settings?.url ?? '/';
+  constructor(settings: StoreSettings) {
+    this.#name = settings.name;
+    this.#host = settings.host;
     this.#endpoint = settings?.endpoint ?? 'operations';
     this.#headers = settings?.headers;
     this.#token = settings?.token;
-    this.#channel = new Channel();
+    this.#channel = new Channel({ name: settings.name });
   }
 
   get node() {
@@ -95,7 +95,7 @@ export class OperationStore {
   private initChannel() {
     this.#channel.init({
       node: this.node,
-      url: this.#url,
+      url: this.#host,
       token: this.#token,
       version: DB_VERSION,
     });
@@ -333,7 +333,7 @@ export class OperationStore {
   }
 
   private async request(method: 'get' | 'post' = 'get', data?: unknown) {
-    if (!this.#url) {
+    if (!this.#host) {
       return false;
     }
     await this.db();
@@ -365,7 +365,7 @@ export class OperationStore {
   }
 
   private buildRequestURL(method: 'get' | 'post', data?: unknown) {
-    const url = `${this.#url}/${this.#endpoint}`;
+    const url = `${this.#host}/${this.#endpoint}`;
 
     if (method == 'get' && data) {
       const params = new URLSearchParams();

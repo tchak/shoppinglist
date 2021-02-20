@@ -54,11 +54,9 @@ export interface ChannelConnectionSettings {
 }
 
 export class Channel {
-  #emitter = createNanoEvents();
-  #channel = new BroadcastChannel<BroadcastChannelMessage>('store', {
-    webWorkerSupport: false,
-  });
+  #channel: BroadcastChannel<BroadcastChannelMessage>;
   #elector: LeaderElector;
+  #emitter = createNanoEvents();
   #subscriptions = new Map<
     string,
     { type: string; id: string; options?: { include?: string[] } }
@@ -66,7 +64,10 @@ export class Channel {
 
   #socket?: Socket;
 
-  constructor() {
+  constructor({ name }: { name: string }) {
+    this.#channel = new BroadcastChannel<BroadcastChannelMessage>(name, {
+      webWorkerSupport: false,
+    });
     this.#elector = createLeaderElection(this.#channel);
   }
 
