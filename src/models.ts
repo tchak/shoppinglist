@@ -2,6 +2,8 @@ import { RecordSchema } from '@orbit/records';
 import { Model } from './store';
 
 export class Item extends Model {
+  static modelName = 'item';
+
   get title(): string {
     return this.getAttribute('title') ?? '';
   }
@@ -20,6 +22,8 @@ export class Item extends Model {
 }
 
 export class List extends Model {
+  static modelName = 'list';
+
   get title(): string {
     return this.getAttribute('title') ?? '';
   }

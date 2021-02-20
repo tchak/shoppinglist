@@ -8,7 +8,6 @@ import {
 } from '@orbit/records';
 import MemorySource from '@orbit/memory';
 
-import { camelCase } from './utils';
 import { OperationStore } from './operation-store';
 
 export interface StoreSettings {
@@ -143,6 +142,11 @@ export class Store {
   }
 }
 
+const modelClassMetadata = new WeakMap<
+  ModelClass<Model>,
+  { modelName: string }
+>();
+
 export class Model {
   #identity: RecordIdentity;
   #source: MemorySource;
@@ -161,7 +165,17 @@ export class Model {
   }
 
   static get modelName() {
-    return camelCase(this.name);
+    const metadata = modelClassMetadata.get(this);
+    if (metadata) {
+      return metadata.modelName;
+    }
+    throw new Error(
+      `You need to set "modelName" on "${this.name}" model class`
+    );
+  }
+
+  static set modelName(modelName: string) {
+    modelClassMetadata.set(this, { modelName });
   }
 
   protected getAttribute<T>(name: string): T | undefined {
