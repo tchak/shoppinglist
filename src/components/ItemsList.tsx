@@ -140,7 +140,7 @@ function Slider({
   children: ReactNode[];
 }) {
   const [isRemoving, setRemoving] = useState(false);
-  const [{ x }, setSpring] = useSpring<{ x: number }>(() => ({
+  const [{ x }, spring] = useSpring<{ x: number }>(() => ({
     x: 0,
   }));
   const bind = useDrag(
@@ -148,7 +148,7 @@ function Slider({
       if (tap && onTap) {
         onTap();
       }
-      (setSpring as any)({
+      spring.start({
         x: down ? mx : 0,
         immediate: down,
       });
