@@ -1,5 +1,5 @@
 import React, { useState, ReactNode } from 'react';
-import { HiTrash, HiCheck, HiPlus, HiX } from 'react-icons/hi';
+import { HiTrash, HiCheck, HiPlus, HiX, HiPencil } from 'react-icons/hi';
 import {
   Disclosure,
   DisclosureButton,
@@ -107,15 +107,23 @@ function ListItem({
           </div>
 
           <button
-            className="ml-3 opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
+            className="ml-3 pointer-events-auto opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
+            type="button"
+            onClick={() => onOpen(id)}
+          >
+            <HiPencil className="hover:text-blue-500 text-2xl" />
+            <span className="sr-only">Edit</span>
+          </button>
+          <button
+            className="ml-3 pointer-events-auto opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
             type="button"
             onClick={() => onToggle(id, !checked)}
           >
             <CheckedIcon className="hover:text-green-500 text-2xl" />
-            <span className="sr-only">Un check</span>
+            <span className="sr-only">Check</span>
           </button>
           <button
-            className="ml-3 opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
+            className="ml-3 pointer-events-auto opacity-0 md:group-hover:opacity-100 transition duration-200 ease-in-out"
             type="button"
             onClick={() => onRemove(id)}
           >
@@ -144,8 +152,9 @@ function Slider({
     x: 0,
   }));
   const bind = useDrag(
-    ({ down, movement: [mx], swipe: [swipeX], tap }) => {
-      if (tap && onTap) {
+    ({ down, movement: [mx], swipe: [swipeX], tap, event }) => {
+      const isSVG = event.target instanceof SVGElement;
+      if (tap && onTap && !isSVG) {
         onTap();
       }
       spring.start({
@@ -161,7 +170,7 @@ function Slider({
       delay: 500,
       useTouch: true,
       swipeDuration: 500,
-      swipeVelocity: 0.2,
+      swipeVelocity: 0.1,
       filterTaps: true,
     }
   );
@@ -169,7 +178,7 @@ function Slider({
   return (
     <animated.div
       {...bind()}
-      className={`flex justify-between flex-grow relative pointer-events-auto bg-gradient-to-r ${
+      className={`flex justify-between flex-grow relative pointer-events-auto md:pointer-events-none bg-gradient-to-r ${
         isRemoving ? 'from-red-300 to-red-500' : 'from-blue-500 to-blue-300'
       }`}
     >
@@ -178,7 +187,7 @@ function Slider({
       <animated.div
         className="bg-white w-full absolute inset-0 flex"
         style={{
-          transform: x.interpolate((x) => `translate3d(${x}px,0,0)`),
+          transform: x.to((x) => `translate3d(${x}px,0,0)`),
         }}
       >
         {children}
