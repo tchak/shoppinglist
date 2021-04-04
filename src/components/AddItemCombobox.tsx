@@ -85,6 +85,6 @@ function useFoodMatch(term: string) {
       ),
     100
   );
-  requestAnimationFrame(() => match.callback(term));
+  requestAnimationFrame(() => match(term));
   return items;
 }

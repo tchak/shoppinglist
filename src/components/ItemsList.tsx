@@ -148,7 +148,7 @@ function Slider({
       if (tap && onTap) {
         onTap();
       }
-      setSpring({
+      (setSpring as any)({
         x: down ? mx : 0,
         immediate: down,
       });
